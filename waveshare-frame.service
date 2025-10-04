@@ -1,0 +1,31 @@
+[Unit]
+Description=Waveshare E-Ink Picture Frame
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/waveshare-picture-frame
+Environment="PATH=/home/pi/waveshare-picture-frame/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Optional: Override config values via environment variables
+# Environment="WAVESHARE_MQTT_HOST=mqtt.example.com"
+# Environment="WAVESHARE_MQTT_PORT=1883"
+# Environment="WAVESHARE_MQTT_USERNAME=myuser"
+# Environment="WAVESHARE_MQTT_PASSWORD=mypassword"
+
+ExecStart=/home/pi/waveshare-picture-frame/.venv/bin/python main.py
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=waveshare-frame
+
+[Install]
+WantedBy=multi-user.target

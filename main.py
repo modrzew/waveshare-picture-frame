@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""Main entry point for the Waveshare picture frame application."""
+
+import argparse
+import logging
+import signal
+import sys
+from pathlib import Path
+
+from src.config import Config
+from src.display.waveshare import WaveshareDisplay
+from src.handlers.image_handler import ImageHandler
+from src.mqtt.client import MQTTClient
+
+logger = logging.getLogger(__name__)
+
+
+class WavesharePictureFrame:
+    """Main application class."""
+
+    def __init__(self, config: Config):
+        """Initialize the application.
+
+        Args:
+            config: Application configuration
+        """
+        self.config = config
+        self.display = None
+        self.mqtt_client = None
+        self.handlers = []
+
+        # Setup logging first
+        self.setup_logging()
+
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals."""
+        logger.info(f"Received signal {signum}, shutting down...")
+        self.shutdown()
+        sys.exit(0)
+
+    def setup_logging(self):
+        """Configure logging based on config."""
+        logging.basicConfig(
+            level=getattr(logging, self.config.logging.level),
+            format=self.config.logging.format,
+        )
+        logger.info("Logging configured")
+
+    def setup_display(self):
+        """Initialize the display."""
+        logger.info("Setting up display")
+        self.display = WaveshareDisplay(
+            model=self.config.display.model,
+            width=self.config.display.width,
+            height=self.config.display.height,
+        )
+        self.display.init()
+        logger.info("Display setup complete")
+
+    def setup_handlers(self):
+        """Initialize message handlers."""
+        logger.info("Setting up handlers")
+
+        # Add image handler
+        image_handler = ImageHandler(self.display)
+        self.handlers.append(image_handler)
+
+        logger.info(f"Initialized {len(self.handlers)} handler(s)")
+
+    def setup_mqtt(self):
+        """Initialize MQTT client and register handlers."""
+        logger.info("Setting up MQTT client")
+
+        self.mqtt_client = MQTTClient(
+            broker_host=self.config.mqtt.host,
+            broker_port=self.config.mqtt.port,
+            client_id=self.config.mqtt.client_id,
+            username=self.config.mqtt.username,
+            password=self.config.mqtt.password,
+        )
+
+        # Register handlers
+        for handler in self.handlers:
+            self.mqtt_client.register_handler(handler)
+
+        # Add topics
+        for topic in self.config.mqtt.topics:
+            self.mqtt_client.add_topic(topic)
+
+        # Connect to broker
+        self.mqtt_client.connect()
+        logger.info("MQTT setup complete")
+
+    def run(self):
+        """Run the application."""
+        try:
+            logger.info("Starting Waveshare Picture Frame")
+
+            # Setup components
+            self.setup_display()
+            self.setup_handlers()
+            self.setup_mqtt()
+
+            # Run MQTT client (blocking)
+            self.mqtt_client.run_forever()
+
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"Application error: {e}", exc_info=True)
+        finally:
+            self.shutdown()
+
+    def shutdown(self):
+        """Gracefully shutdown the application."""
+        logger.info("Shutting down application")
+
+        # Disconnect MQTT
+        if self.mqtt_client:
+            try:
+                self.mqtt_client.disconnect()
+            except Exception as e:
+                logger.error(f"Error disconnecting MQTT: {e}")
+
+        # Clear and sleep display
+        if self.display and self.display.is_initialized:
+            try:
+                logger.info("Clearing display")
+                self.display.clear()
+                self.display.sleep()
+            except Exception as e:
+                logger.error(f"Error shutting down display: {e}")
+
+        logger.info("Shutdown complete")
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="Waveshare e-ink picture frame with MQTT support")
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="config.toml",
+        help="Path to configuration file (default: config.toml)",
+    )
+    parser.add_argument(
+        "--test-display",
+        action="store_true",
+        help="Test the display with a sample image and exit",
+    )
+
+    args = parser.parse_args()
+
+    # Check if config file exists
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"Configuration file not found: {config_path}")
+        print("Please create a config.toml file or specify a different path with -c")
+        sys.exit(1)
+
+    # Load configuration
+    try:
+        config = Config.from_file(str(config_path))
+    except Exception as e:
+        print(f"Failed to load configuration: {e}")
+        sys.exit(1)
+
+    # Test mode
+    if args.test_display:
+        logging.basicConfig(level=logging.DEBUG)
+        logger.info("Running display test")
+
+        try:
+            display = WaveshareDisplay(
+                model=config.display.model,
+                width=config.display.width,
+                height=config.display.height,
+            )
+            display.init()
+
+            # Create test image
+            from PIL import Image, ImageDraw
+
+            image = Image.new("RGB", (display.width, display.height), (255, 255, 255))
+            draw = ImageDraw.Draw(image)
+
+            # Draw test pattern
+            draw.rectangle((10, 10, display.width - 10, display.height - 10), outline=(0, 0, 0))
+            draw.text(
+                (display.width // 2 - 50, display.height // 2 - 10),
+                "Test Image",
+                fill=(0, 0, 0),
+            )
+
+            display.display_image(image)
+            logger.info("Test image displayed. Press Ctrl+C to exit")
+
+            input()  # Wait for user input
+            display.clear()
+            display.sleep()
+
+        except Exception as e:
+            logger.error(f"Display test failed: {e}")
+            sys.exit(1)
+
+        logger.info("Display test complete")
+        sys.exit(0)
+
+    # Run application
+    app = WavesharePictureFrame(config)
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

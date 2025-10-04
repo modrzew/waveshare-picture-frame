@@ -1,0 +1,42 @@
+# Waveshare Picture Frame Configuration
+
+[mqtt]
+host = "localhost"  # MQTT broker hostname or IP
+port = 1883         # MQTT broker port
+# client_id = "waveshare-frame-01"  # Optional: unique client ID
+# username = "mqtt_user"             # Optional: MQTT username
+# password = "mqtt_pass"             # Optional: MQTT password
+topics = [
+    "home/displays/waveshare/command",  # Topic(s) to subscribe to
+    # "home/displays/+/command",        # Can use wildcards
+]
+
+[display]
+model = "7in3e"     # Waveshare model (7in3e, 7in5, 7in5_V2, etc.)
+width = 800         # Display width in pixels
+height = 480        # Display height in pixels
+
+[logging]
+level = "INFO"      # Log level: DEBUG, INFO, WARNING, ERROR
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Note: Environment variables can override these settings:
+# - WAVESHARE_MQTT_HOST
+# - WAVESHARE_MQTT_PORT
+# - WAVESHARE_MQTT_USERNAME
+# - WAVESHARE_MQTT_PASSWORD
+# - WAVESHARE_MQTT_CLIENT_ID
+# - WAVESHARE_DISPLAY_MODEL
+# - WAVESHARE_DISPLAY_WIDTH
+# - WAVESHARE_DISPLAY_HEIGHT
+# - WAVESHARE_LOGGING_LEVEL
+
+# Example MQTT message format:
+# {
+#   "action": "display_image",
+#   "data": {
+#     "url": "https://example.com/image.jpg",
+#     "resize": true,
+#     "clear_first": true
+#   }
+# }
