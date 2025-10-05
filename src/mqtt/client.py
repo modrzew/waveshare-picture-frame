@@ -95,7 +95,15 @@ class MQTTClient:
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
         logger.info("Disconnecting from MQTT broker")
-        self.client.loop_stop(force=True)  # type: ignore[call-arg]
+
+        # Stop the loop with a timeout to prevent hanging
+        stop_thread = threading.Thread(target=self.client.loop_stop)
+        stop_thread.start()
+        stop_thread.join(timeout=2.0)
+
+        if stop_thread.is_alive():
+            logger.warning("loop_stop() timed out, forcing disconnect")
+
         self.client.disconnect()
         self.connected.clear()
         logger.info("Disconnected from MQTT broker")
