@@ -84,6 +84,8 @@ class WavesharePictureFrame:
         """Initialize message handlers."""
         logger.info("Setting up handlers")
 
+        assert self.display is not None, "Display must be initialized before setting up handlers"
+
         # Add image handler
         image_handler = ImageHandler(self.display)
         self.handlers.append(image_handler)
@@ -123,6 +125,8 @@ class WavesharePictureFrame:
             self.setup_display()
             self.setup_handlers()
             self.setup_mqtt()
+
+            assert self.mqtt_client is not None, "MQTT client must be initialized"
 
             # Run MQTT client (blocking)
             self.mqtt_client.run_forever()

@@ -3,7 +3,7 @@
 import logging
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -18,11 +18,7 @@ class MQTTConfig:
     client_id: str | None = None
     username: str | None = None
     password: str | None = None
-    topics: list[str] | None = None
-
-    def __post_init__(self):
-        if self.topics is None:
-            self.topics = []
+    topics: list[str] = field(default_factory=list)
 
 
 @dataclass

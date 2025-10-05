@@ -5,7 +5,7 @@ import logging
 import threading
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.client import CallbackAPIVersion
+from paho.mqtt.enums import CallbackAPIVersion
 
 from src.handlers.base import HandlerBase
 

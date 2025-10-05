@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class EPDProtocol(Protocol):
     """Protocol for Waveshare EPD display drivers."""
 
-    def init(self) -> None:
+    def init(self) -> int | None:
         """Initialize the display."""
         ...
 
@@ -21,11 +21,11 @@ class EPDProtocol(Protocol):
         """Clear the display."""
         ...
 
-    def display(self, image: bytes) -> None:
+    def display(self, image: list[int] | bytearray) -> None:
         """Display image data on the screen."""
         ...
 
-    def getbuffer(self, image: Image.Image) -> bytes:
+    def getbuffer(self, image: Image.Image) -> list[int] | bytearray:
         """Convert PIL Image to display buffer."""
         ...
 
@@ -89,7 +89,7 @@ class WaveshareDisplay(DisplayBase):
         Args:
             image: PIL Image object to display
         """
-        if not self.is_initialized:
+        if not self.is_initialized or self.epd is None:
             raise RuntimeError("Display not initialized. Call init() first.")
 
         try:
@@ -113,7 +113,7 @@ class WaveshareDisplay(DisplayBase):
 
     def clear(self) -> None:
         """Clear the display."""
-        if not self.is_initialized:
+        if not self.is_initialized or self.epd is None:
             raise RuntimeError("Display not initialized. Call init() first.")
 
         try:
@@ -126,7 +126,7 @@ class WaveshareDisplay(DisplayBase):
 
     def sleep(self) -> None:
         """Put the display into low power mode."""
-        if not self.is_initialized:
+        if not self.is_initialized or self.epd is None:
             raise RuntimeError("Display not initialized. Call init() first.")
 
         try:
