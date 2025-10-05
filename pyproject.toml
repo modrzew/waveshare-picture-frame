@@ -19,7 +19,7 @@ rpi = ["RPi.GPIO", "spidev"]
 jetson = ["Jetson.GPIO"]
 
 [dependency-groups]
-dev = ["ruff>=0.8.4"]
+dev = ["ruff>=0.8.4", "pyright>=1.1.390"]
 
 [tool.ruff]
 line-length = 100
@@ -41,3 +41,6 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pyright]
+exclude = ["src/vendor/waveshare_epd", ".venv"]
