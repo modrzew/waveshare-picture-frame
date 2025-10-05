@@ -4,13 +4,16 @@
 import argparse
 import logging
 import signal
+import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.config import Config
 from src.display.waveshare import WaveshareDisplay
 from src.handlers.image_handler import ImageHandler
 from src.mqtt.client import MQTTClient
+from src.pisugar.client import PisugarClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +21,17 @@ logger = logging.getLogger(__name__)
 class WavesharePictureFrame:
     """Main application class."""
 
-    def __init__(self, config: Config, dry_run: bool = False):
+    def __init__(self, config: Config, dry_run: bool = False, battery_mode: bool = False):
         """Initialize the application.
 
         Args:
             config: Application configuration
             dry_run: If True, use mock display instead of real hardware
+            battery_mode: If True, run in battery-powered mode
         """
         self.config = config
         self.dry_run = dry_run
+        self.battery_mode = battery_mode
         self.display = None
         self.mqtt_client = None
         self.handlers = []
@@ -119,8 +124,15 @@ class WavesharePictureFrame:
 
     def run(self):
         """Run the application."""
+        if self.battery_mode or self.config.pisugar.enabled:
+            self.run_battery_mode()
+        else:
+            self.run_normal_mode()
+
+    def run_normal_mode(self):
+        """Run in normal always-on mode."""
         try:
-            logger.info("Starting Waveshare Picture Frame")
+            logger.info("Starting Waveshare Picture Frame (normal mode)")
 
             # Setup components
             self.setup_display()
@@ -136,6 +148,79 @@ class WavesharePictureFrame:
             logger.info("Received keyboard interrupt")
         except Exception as e:
             logger.error(f"Application error: {e}", exc_info=True)
+        finally:
+            self.shutdown()
+
+    def run_battery_mode(self):
+        """Run in battery-powered mode with Pisugar RTC wake-up."""
+        try:
+            logger.info("Starting Waveshare Picture Frame (battery mode)")
+
+            # Setup components
+            self.setup_display()
+            self.setup_handlers()
+            self.setup_mqtt()
+
+            assert self.mqtt_client is not None, "MQTT client must be initialized"
+
+            # Check for messages with timeout
+            timeout = self.config.pisugar.message_wait_timeout
+            messages_processed = self.mqtt_client.run_once(timeout=timeout)
+
+            logger.info(f"Battery mode: processed {messages_processed} message(s)")
+
+            # Setup Pisugar RTC alarm for next wake-up
+            if self.config.pisugar.shutdown_after_display:
+                try:
+                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+
+                    # Get battery level for logging
+                    battery_level = pisugar.get_battery_level()
+                    if battery_level is not None:
+                        logger.info(f"Battery level: {battery_level:.1f}%")
+
+                    # Calculate next wake time
+                    wake_interval = timedelta(minutes=self.config.pisugar.wake_interval_minutes)
+                    next_wake = datetime.now() + wake_interval
+                    logger.info(
+                        f"Setting RTC alarm for {next_wake.strftime('%Y-%m-%d %H:%M:%S')} "
+                        f"({self.config.pisugar.wake_interval_minutes} minutes from now)"
+                    )
+
+                    # Set RTC alarm
+                    pisugar.set_rtc_alarm(next_wake)
+
+                    # Verify alarm was set
+                    if pisugar.is_rtc_alarm_enabled():
+                        alarm_time = pisugar.get_rtc_alarm_time()
+                        logger.info(f"RTC alarm confirmed: {alarm_time}")
+                    else:
+                        logger.warning("RTC alarm may not have been set correctly")
+
+                except Exception as e:
+                    logger.error(f"Failed to set RTC alarm: {e}", exc_info=True)
+                    logger.warning("Continuing without RTC alarm")
+
+                # Shutdown the system
+                logger.info("Initiating system shutdown")
+                try:
+                    # Use subprocess to run shutdown command
+                    # Note: Requires passwordless sudo for shutdown command
+                    subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to shutdown system: {e}")
+                    logger.error(
+                        "Make sure the user has passwordless sudo for shutdown. "
+                        "Add to /etc/sudoers.d/waveshare-frame:\n"
+                        "waveshare ALL=(ALL) NOPASSWD: /sbin/shutdown"
+                    )
+                except FileNotFoundError:
+                    logger.error("shutdown command not found")
+
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"Battery mode error: {e}", exc_info=True)
         finally:
             self.shutdown()
 
@@ -179,6 +264,11 @@ def main():
         "--dry-run",
         action="store_true",
         help="Use mock display instead of real hardware (for testing MQTT without hardware)",
+    )
+    parser.add_argument(
+        "--battery-mode",
+        action="store_true",
+        help="Run in battery mode: check for messages, display, set RTC alarm, and shutdown",
     )
 
     args = parser.parse_args()
@@ -239,7 +329,7 @@ def main():
         sys.exit(0)
 
     # Run application
-    app = WavesharePictureFrame(config, dry_run=args.dry_run)
+    app = WavesharePictureFrame(config, dry_run=args.dry_run, battery_mode=args.battery_mode)
     app.run()
 
 

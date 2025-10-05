@@ -20,6 +20,13 @@ height = 480        # Display height in pixels
 level = "INFO"      # Log level: DEBUG, INFO, WARNING, ERROR
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+[pisugar]
+enabled = false                     # Enable battery mode with Pisugar RTC
+wake_interval_minutes = 15          # Minutes between wake-ups
+socket_path = "/tmp/pisugar-server.sock"  # Pisugar Unix socket path
+message_wait_timeout = 30           # Seconds to wait for MQTT messages
+shutdown_after_display = true       # Shutdown system after displaying
+
 # Note: Environment variables can override these settings:
 # - WAVESHARE_MQTT_HOST
 # - WAVESHARE_MQTT_PORT
@@ -30,6 +37,11 @@ format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 # - WAVESHARE_DISPLAY_WIDTH
 # - WAVESHARE_DISPLAY_HEIGHT
 # - WAVESHARE_LOGGING_LEVEL
+# - WAVESHARE_PISUGAR_ENABLED
+# - WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES
+# - WAVESHARE_PISUGAR_SOCKET_PATH
+# - WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT
+# - WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY
 
 # Example MQTT message format:
 # {

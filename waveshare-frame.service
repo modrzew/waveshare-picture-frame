@@ -16,9 +16,14 @@ Environment="PATH=/home/pi/waveshare-picture-frame/.venv/bin:/usr/local/sbin:/us
 # Environment="WAVESHARE_MQTT_USERNAME=myuser"
 # Environment="WAVESHARE_MQTT_PASSWORD=mypassword"
 
+# Battery mode: Enable Pisugar RTC wake-up and auto-shutdown
+# Environment="WAVESHARE_PISUGAR_ENABLED=true"
+# Environment="WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES=15"
+
 ExecStart=/home/pi/waveshare-picture-frame/.venv/bin/python main.py
 
 # Restart policy
+# Note: For battery mode with auto-shutdown, set Restart=no to prevent restart after shutdown
 Restart=on-failure
 RestartSec=10
 
@@ -29,3 +34,25 @@ SyslogIdentifier=waveshare-frame
 
 [Install]
 WantedBy=multi-user.target
+
+# Battery Mode Setup Instructions:
+#
+# 1. Enable battery mode in config.toml:
+#    [pisugar]
+#    enabled = true
+#    wake_interval_minutes = 15
+#
+# 2. Configure passwordless sudo for shutdown:
+#    sudo visudo -f /etc/sudoers.d/waveshare-frame
+#    Add this line (replace 'pi' with your username):
+#    pi ALL=(ALL) NOPASSWD: /sbin/shutdown
+#
+# 3. Update this service file for battery mode:
+#    - Set Restart=no (to prevent restart after shutdown)
+#    - Optionally enable Pisugar via environment variable
+#
+# 4. Install and enable the service:
+#    sudo cp waveshare-frame.service /etc/systemd/system/
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable waveshare-frame.service
+#    sudo systemctl start waveshare-frame.service

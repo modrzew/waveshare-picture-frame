@@ -40,12 +40,24 @@ class LoggingConfig:
 
 
 @dataclass
+class PisugarConfig:
+    """Pisugar battery and RTC configuration."""
+
+    enabled: bool = False
+    wake_interval_minutes: int = 15
+    socket_path: str = "/tmp/pisugar-server.sock"
+    message_wait_timeout: int = 30  # Seconds to wait for MQTT messages
+    shutdown_after_display: bool = True
+
+
+@dataclass
 class Config:
     """Application configuration."""
 
     mqtt: MQTTConfig
     display: DisplayConfig
     logging: LoggingConfig
+    pisugar: PisugarConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
@@ -60,6 +72,7 @@ class Config:
         mqtt_data = data.get("mqtt", {})
         display_data = data.get("display", {})
         logging_data = data.get("logging", {})
+        pisugar_data = data.get("pisugar", {})
 
         mqtt_config = MQTTConfig(
             host=mqtt_data.get("host", "localhost"),
@@ -84,7 +97,20 @@ class Config:
             ),
         )
 
-        return cls(mqtt=mqtt_config, display=display_config, logging=logging_config)
+        pisugar_config = PisugarConfig(
+            enabled=pisugar_data.get("enabled", False),
+            wake_interval_minutes=pisugar_data.get("wake_interval_minutes", 15),
+            socket_path=pisugar_data.get("socket_path", "/tmp/pisugar-server.sock"),
+            message_wait_timeout=pisugar_data.get("message_wait_timeout", 30),
+            shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
+        )
+
+        return cls(
+            mqtt=mqtt_config,
+            display=display_config,
+            logging=logging_config,
+            pisugar=pisugar_config,
+        )
 
     @classmethod
     def from_file(cls, file_path: str) -> "Config":
@@ -183,5 +209,29 @@ class Config:
         if level := os.getenv("WAVESHARE_LOGGING_LEVEL"):
             data["logging"]["level"] = level
             logger.debug(f"Overriding logging level from environment: {level}")
+
+        # Pisugar overrides
+        if "pisugar" not in data:
+            data["pisugar"] = {}
+
+        if enabled := os.getenv("WAVESHARE_PISUGAR_ENABLED"):
+            data["pisugar"]["enabled"] = enabled.lower() in ("true", "1", "yes")
+            logger.debug(f"Overriding pisugar enabled from environment: {enabled}")
+
+        if wake_interval := os.getenv("WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES"):
+            data["pisugar"]["wake_interval_minutes"] = int(wake_interval)
+            logger.debug(f"Overriding pisugar wake interval from environment: {wake_interval}")
+
+        if socket_path := os.getenv("WAVESHARE_PISUGAR_SOCKET_PATH"):
+            data["pisugar"]["socket_path"] = socket_path
+            logger.debug(f"Overriding pisugar socket path from environment: {socket_path}")
+
+        if timeout := os.getenv("WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT"):
+            data["pisugar"]["message_wait_timeout"] = int(timeout)
+            logger.debug(f"Overriding pisugar message wait timeout from environment: {timeout}")
+
+        if shutdown := os.getenv("WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY"):
+            data["pisugar"]["shutdown_after_display"] = shutdown.lower() in ("true", "1", "yes")
+            logger.debug(f"Overriding pisugar shutdown after display from environment: {shutdown}")
 
         return data

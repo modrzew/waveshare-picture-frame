@@ -48,6 +48,7 @@ python main.py                     # Run with default config.toml
 python main.py -c custom.toml      # Run with custom config file
 python main.py --test-display      # Test display with sample image and exit
 python main.py --dry-run           # Run with mock display (for testing MQTT without hardware)
+python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 ```
 
 **Dry-run mode** (`--dry-run`):
@@ -55,6 +56,18 @@ python main.py --dry-run           # Run with mock display (for testing MQTT wit
 - Logs all display operations without requiring Waveshare hardware or Raspberry Pi
 - Essential for development on Mac/Windows/x86 Linux
 - Perfect for testing MQTT integration and message handlers
+
+**Battery mode** (`--battery-mode` or `pisugar.enabled = true` in config):
+- Designed for Pisugar 3 battery-powered operation on Raspberry Pi Zero W
+- Wake-check-display-sleep cycle:
+  1. Connects to MQTT with QoS 2 + clean_session=false (queues messages while offline)
+  2. Waits for messages (configurable timeout, default 30s)
+  3. Processes any queued/new messages
+  4. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
+  5. Shuts down the system
+- Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
+- Battery life: weeks/months instead of hours with always-on mode
+- See `waveshare-frame.service` for deployment instructions
 
 **Signal handling:**
 - First Ctrl+C: Graceful shutdown (disconnects MQTT, clears display, sleeps hardware)
@@ -107,14 +120,15 @@ journalctl -u waveshare-frame -f
 
 ### Key Files
 
-- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals
-- **src/config.py**: TOML parsing + environment variable override logic
-- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing
+- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode
+- **src/config.py**: TOML parsing + environment variable override logic; includes PisugarConfig
+- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports both always-on (`run_forever()`) and one-shot (`run_once()`) modes
 - **src/handlers/base.py**: Abstract handler interface (can_handle, handle, supported_actions)
 - **src/handlers/image_handler.py**: Fetches images from URLs and displays them
 - **src/display/base.py**: Abstract display interface with shared image resizing
 - **src/display/waveshare.py**: Real hardware implementation using waveshare-epd library
 - **src/display/mock.py**: Mock display for development without hardware
+- **src/pisugar/client.py**: Pisugar power manager client for RTC alarm and battery status
 
 ### MQTT Message Protocol
 
@@ -151,12 +165,20 @@ height = 480
 
 [logging]
 level = "INFO"         # DEBUG, INFO, WARNING, ERROR
+
+[pisugar]
+enabled = false                     # Enable battery mode
+wake_interval_minutes = 15          # Minutes between wake-ups
+socket_path = "/tmp/pisugar-server.sock"
+message_wait_timeout = 30           # Seconds to wait for MQTT messages
+shutdown_after_display = true       # Shutdown after processing
 ```
 
 **Environment overrides:**
 - `WAVESHARE_MQTT_HOST`, `WAVESHARE_MQTT_PORT`, `WAVESHARE_MQTT_USERNAME`, `WAVESHARE_MQTT_PASSWORD`, `WAVESHARE_MQTT_CLIENT_ID`
 - `WAVESHARE_DISPLAY_MODEL`, `WAVESHARE_DISPLAY_WIDTH`, `WAVESHARE_DISPLAY_HEIGHT`
 - `WAVESHARE_LOGGING_LEVEL`
+- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`
 
 ### Adding New Message Handlers
 

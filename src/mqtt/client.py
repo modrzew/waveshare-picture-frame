@@ -253,6 +253,76 @@ class MQTTClient:
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
+    def run_once(self, timeout: float = 30.0) -> int:
+        """Connect, wait for messages, process them, and disconnect.
+
+        This method is designed for battery-powered operation where the device
+        wakes up periodically to check for new messages.
+
+        Args:
+            timeout: Maximum time to wait for messages in seconds
+
+        Returns:
+            Number of messages processed
+        """
+        messages_processed = 0
+        message_received_event = threading.Event()
+        original_on_message = self._on_message
+
+        def message_counter(client, userdata, msg):
+            """Wrapper to count messages."""
+            nonlocal messages_processed
+            messages_processed += 1
+            message_received_event.set()
+            original_on_message(client, userdata, msg)
+
+        # Temporarily replace the message callback to count messages
+        self.client.on_message = message_counter
+
+        try:
+            logger.info(f"Running in one-shot mode with {timeout}s timeout")
+
+            # Connect and subscribe
+            self.connect()
+
+            # Wait for messages with timeout
+            start_time = time.time()
+            while True:
+                elapsed = time.time() - start_time
+
+                if elapsed >= timeout:
+                    logger.info(f"Timeout reached after {elapsed:.1f}s")
+                    break
+
+                # Wait for a message with remaining timeout
+                remaining = timeout - elapsed
+                if message_received_event.wait(timeout=min(remaining, 1.0)):
+                    logger.info("Message received, extending timeout by 5s for follow-up messages")
+                    # Reset event and extend timeout slightly for follow-up messages
+                    message_received_event.clear()
+                    time.sleep(5)  # Wait for potential follow-up messages
+                    # After the grace period, check if we should continue
+                    if time.time() - start_time >= timeout + 5:
+                        break
+                else:
+                    # No message received in this interval, continue waiting
+                    pass
+
+                # Break if timeout exceeded
+                if time.time() - start_time >= timeout + 5:
+                    break
+
+            logger.info(f"Processed {messages_processed} message(s)")
+
+        finally:
+            # Restore original callback
+            self.client.on_message = original_on_message
+
+            # Disconnect
+            self.disconnect()
+
+        return messages_processed
+
     def run_forever(self) -> None:
         """Run the client in blocking mode."""
         try:
