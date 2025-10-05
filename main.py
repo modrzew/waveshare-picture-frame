@@ -149,11 +149,9 @@ class WavesharePictureFrame:
             except Exception as e:
                 logger.error(f"Error disconnecting MQTT: {e}")
 
-        # Clear and sleep display
+        # Sleep display
         if self.display and self.display.is_initialized:
             try:
-                logger.info("Clearing display")
-                self.display.clear()
                 self.display.sleep()
             except Exception as e:
                 logger.error(f"Error shutting down display: {e}")
