@@ -50,14 +50,14 @@ class ImageHandler(HandlerBase):
             data: Message data containing:
                 - url: Image URL to load
                 - resize: Whether to resize the image (default: True)
-                - clear_first: Whether to clear display first (default: True)
+                - clear_first: Whether to clear display first (default: False)
         """
         url = data.get("url")
         if not url:
             raise ValueError("Missing 'url' in message data")
 
         resize = data.get("resize", True)
-        clear_first = data.get("clear_first", True)
+        clear_first = data.get("clear_first", False)
 
         try:
             # Clear display if requested
