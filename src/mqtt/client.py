@@ -3,6 +3,7 @@
 import json
 import logging
 import threading
+import time
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
@@ -22,6 +23,7 @@ class MQTTClient:
         client_id: str | None = None,
         username: str | None = None,
         password: str | None = None,
+        shutdown_timeout: float = 60.0,
     ):
         """Initialize MQTT client.
 
@@ -31,9 +33,11 @@ class MQTTClient:
             client_id: Client ID for MQTT connection
             username: Optional username for authentication
             password: Optional password for authentication
+            shutdown_timeout: Seconds to wait for handlers during shutdown
         """
         self.broker_host = broker_host
         self.broker_port = broker_port
+        self.shutdown_timeout = shutdown_timeout
 
         # Initialize MQTT client (paho-mqtt v2.x API)
         if client_id:
@@ -56,6 +60,11 @@ class MQTTClient:
         self.handlers: list[HandlerBase] = []
         self.topics: list[str] = []
         self.connected = threading.Event()
+
+        # Handler activity tracking for graceful shutdown
+        self._handler_lock = threading.Lock()
+        self._active_handlers = 0
+        self._shutting_down = False
 
     def register_handler(self, handler: HandlerBase) -> None:
         """Register a message handler.
@@ -92,9 +101,44 @@ class MQTTClient:
             logger.error(f"Failed to connect to MQTT broker: {e}")
             raise
 
+    def wait_for_handlers(self, timeout: float = 60.0) -> bool:
+        """Wait for all active handlers to complete.
+
+        Args:
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            True if all handlers completed, False if timeout occurred
+        """
+        start_time = time.time()
+        while True:
+            with self._handler_lock:
+                if self._active_handlers == 0:
+                    logger.info("All handlers completed")
+                    return True
+
+                active_count = self._active_handlers
+
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                logger.warning(
+                    f"Timeout waiting for {active_count} handler(s) to complete after {timeout}s"
+                )
+                return False
+
+            logger.debug(f"Waiting for {active_count} handler(s) to complete...")
+            time.sleep(0.1)
+
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
         logger.info("Disconnecting from MQTT broker")
+
+        # Mark as shutting down to prevent new messages from being processed
+        with self._handler_lock:
+            self._shutting_down = True
+
+        # Wait for active handlers to complete
+        self.wait_for_handlers(timeout=self.shutdown_timeout)
 
         # Stop the loop with a timeout to prevent hanging
         stop_thread = threading.Thread(target=self.client.loop_stop)
@@ -154,6 +198,12 @@ class MQTTClient:
             msg: Message object
         """
         try:
+            # Check if we're shutting down
+            with self._handler_lock:
+                if self._shutting_down:
+                    logger.debug("Ignoring message - shutting down")
+                    return
+
             topic = msg.topic
             payload = msg.payload.decode("utf-8")
             logger.debug(f"Received message on {topic}: {payload}")
@@ -179,7 +229,19 @@ class MQTTClient:
                 if handler.can_handle(action):
                     logger.info(f"Processing '{action}' with {handler.__class__.__name__}")
                     try:
-                        handler.handle(data)
+                        # Track handler activity
+                        with self._handler_lock:
+                            if self._shutting_down:
+                                logger.info("Shutdown initiated - not processing new message")
+                                return
+                            self._active_handlers += 1
+
+                        try:
+                            handler.handle(data)
+                        finally:
+                            with self._handler_lock:
+                                self._active_handlers -= 1
+
                         handler_found = True
                         break
                     except Exception as e:

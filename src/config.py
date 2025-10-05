@@ -19,6 +19,7 @@ class MQTTConfig:
     username: str | None = None
     password: str | None = None
     topics: list[str] = field(default_factory=list)
+    shutdown_timeout: float = 60.0  # Seconds to wait for handlers during shutdown
 
 
 @dataclass
@@ -67,6 +68,7 @@ class Config:
             username=mqtt_data.get("username"),
             password=mqtt_data.get("password"),
             topics=mqtt_data.get("topics", []),
+            shutdown_timeout=mqtt_data.get("shutdown_timeout", 60.0),
         )
 
         display_config = DisplayConfig(
@@ -153,6 +155,10 @@ class Config:
         if client_id := os.getenv("WAVESHARE_MQTT_CLIENT_ID"):
             data["mqtt"]["client_id"] = client_id
             logger.debug(f"Overriding MQTT client_id from environment: {client_id}")
+
+        if shutdown_timeout := os.getenv("WAVESHARE_MQTT_SHUTDOWN_TIMEOUT"):
+            data["mqtt"]["shutdown_timeout"] = float(shutdown_timeout)
+            logger.debug(f"Overriding MQTT shutdown_timeout from environment: {shutdown_timeout}")
 
         # Display overrides
         if "display" not in data:

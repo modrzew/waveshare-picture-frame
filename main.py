@@ -102,6 +102,7 @@ class WavesharePictureFrame:
             client_id=self.config.mqtt.client_id,
             username=self.config.mqtt.username,
             password=self.config.mqtt.password,
+            shutdown_timeout=self.config.mqtt.shutdown_timeout,
         )
 
         # Register handlers
