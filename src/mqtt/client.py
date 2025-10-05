@@ -37,9 +37,11 @@ class MQTTClient:
 
         # Initialize MQTT client (paho-mqtt v2.x API)
         if client_id:
-            self.client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=client_id)
+            self.client = mqtt.Client(
+                CallbackAPIVersion.VERSION2, client_id=client_id, clean_session=False
+            )
         else:
-            self.client = mqtt.Client(CallbackAPIVersion.VERSION2)
+            self.client = mqtt.Client(CallbackAPIVersion.VERSION2, clean_session=False)
 
         # Set authentication if provided
         if username:
@@ -93,7 +95,7 @@ class MQTTClient:
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker."""
         logger.info("Disconnecting from MQTT broker")
-        self.client.loop_stop()
+        self.client.loop_stop(force=True)  # type: ignore[call-arg]
         self.client.disconnect()
         self.connected.clear()
         logger.info("Disconnected from MQTT broker")
