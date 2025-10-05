@@ -76,7 +76,6 @@ class WaveshareDisplay(DisplayBase):
             logger.info(f"Initializing Waveshare {self.model} display")
             self.epd = self._get_epd_module()
             self.epd.init()
-            self.epd.Clear()
             self.is_initialized = True
             logger.info("Display initialized successfully")
         except Exception as e:
