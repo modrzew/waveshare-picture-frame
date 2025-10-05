@@ -13,7 +13,13 @@ This is a Python application for controlling Waveshare e-ink displays via MQTT m
 python main.py                     # Run with default config.toml
 python main.py -c custom.toml      # Run with custom config file
 python main.py --test-display      # Test display with sample image
+python main.py --dry-run           # Run with mock display (for testing MQTT without hardware)
 ```
+
+**Dry-run mode** is useful for:
+- Testing MQTT integration on development machines without Waveshare hardware
+- Debugging message handlers without affecting the physical display
+- Development on non-ARM platforms (Mac, Windows, x86 Linux)
 
 ### Running as a systemd service (Raspberry Pi)
 ```bash
@@ -54,6 +60,7 @@ uv run ruff check --fix .    # Auto-fix linting issues
 - **src/display/**: Display abstractions and implementations
   - `base.py`: Abstract display interface
   - `waveshare.py`: Waveshare e-ink display driver integration
+  - `mock.py`: Mock display for testing without hardware
 
 ### Message Flow
 

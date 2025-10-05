@@ -18,16 +18,19 @@ logger = logging.getLogger(__name__)
 class WavesharePictureFrame:
     """Main application class."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, dry_run: bool = False):
         """Initialize the application.
 
         Args:
             config: Application configuration
+            dry_run: If True, use mock display instead of real hardware
         """
         self.config = config
+        self.dry_run = dry_run
         self.display = None
         self.mqtt_client = None
         self.handlers = []
+        self._shutting_down = False
 
         # Setup logging first
         self.setup_logging()
@@ -38,7 +41,12 @@ class WavesharePictureFrame:
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals."""
+        if self._shutting_down:
+            logger.warning("Forced shutdown!")
+            sys.exit(1)
+
         logger.info(f"Received signal {signum}, shutting down...")
+        self._shutting_down = True
         self.shutdown()
         sys.exit(0)
 
@@ -53,11 +61,22 @@ class WavesharePictureFrame:
     def setup_display(self):
         """Initialize the display."""
         logger.info("Setting up display")
-        self.display = WaveshareDisplay(
-            model=self.config.display.model,
-            width=self.config.display.width,
-            height=self.config.display.height,
-        )
+
+        if self.dry_run:
+            from src.display.mock import MockDisplay
+
+            self.display = MockDisplay(
+                model=self.config.display.model,
+                width=self.config.display.width,
+                height=self.config.display.height,
+            )
+        else:
+            self.display = WaveshareDisplay(
+                model=self.config.display.model,
+                width=self.config.display.width,
+                height=self.config.display.height,
+            )
+
         self.display.init()
         logger.info("Display setup complete")
 
@@ -153,6 +172,11 @@ def main():
         action="store_true",
         help="Test the display with a sample image and exit",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Use mock display instead of real hardware (for testing MQTT without hardware)",
+    )
 
     args = parser.parse_args()
 
@@ -212,7 +236,7 @@ def main():
         sys.exit(0)
 
     # Run application
-    app = WavesharePictureFrame(config)
+    app = WavesharePictureFrame(config, dry_run=args.dry_run)
     app.run()
 
 
