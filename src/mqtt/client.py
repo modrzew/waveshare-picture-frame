@@ -116,7 +116,7 @@ class MQTTClient:
 
             # Subscribe to topics
             for topic in self.topics:
-                client.subscribe(topic)
+                client.subscribe(topic, qos=2)
                 logger.info(f"Subscribed to topic: {topic}")
         else:
             logger.error(f"Failed to connect to MQTT broker. Result code: {reason_code}")
