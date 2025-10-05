@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "waveshare-picture-frame"
 version = "0.1.0"
@@ -8,8 +12,11 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "pillow>=10.4.0",
     "requests>=2.32.3",
-    "waveshare-epd @ git+https://github.com/waveshareteam/e-Paper.git#subdirectory=RaspberryPi_JetsonNano/python",
 ]
+
+[project.optional-dependencies]
+rpi = ["RPi.GPIO", "spidev"]
+jetson = ["Jetson.GPIO"]
 
 [dependency-groups]
 dev = ["ruff>=0.8.4"]
@@ -17,6 +24,7 @@ dev = ["ruff>=0.8.4"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+exclude = ["src/vendor/waveshare_epd"]
 
 [tool.ruff.lint]
 select = [

@@ -12,10 +12,40 @@ A Python application that displays images on Waveshare e-ink displays via MQTT m
 
 ## Installation
 
+### Standard Installation (Mac/Linux/Windows)
+
 Requires Python 3.13 and uv package manager.
 
 ```bash
 uv sync
+```
+
+### Hardware Platform Installation
+
+Install with platform-specific GPIO libraries:
+
+```bash
+# Raspberry Pi
+uv sync --extra rpi
+
+# Jetson Nano
+uv sync --extra jetson
+
+# Horizon Robotics (Hobot.GPIO not on PyPI, install manually)
+uv sync
+pip install Hobot.GPIO spidev
+```
+
+### Raspberry Pi Zero W (System Packages)
+
+If you need system-installed Pillow on Pi Zero W:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3-pil python3-numpy python3-rpi.gpio python3-spidev
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+uv pip install paho-mqtt requests
 ```
 
 ## Usage

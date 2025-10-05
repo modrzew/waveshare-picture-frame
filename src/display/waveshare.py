@@ -1,12 +1,37 @@
 """Waveshare e-ink display implementation."""
 
 import logging
+from typing import Protocol
 
 from PIL import Image
 
 from .base import DisplayBase
 
 logger = logging.getLogger(__name__)
+
+
+class EPDProtocol(Protocol):
+    """Protocol for Waveshare EPD display drivers."""
+
+    def init(self) -> None:
+        """Initialize the display."""
+        ...
+
+    def Clear(self) -> None:
+        """Clear the display."""
+        ...
+
+    def display(self, image: bytes) -> None:
+        """Display image data on the screen."""
+        ...
+
+    def getbuffer(self, image: Image.Image) -> bytes:
+        """Convert PIL Image to display buffer."""
+        ...
+
+    def sleep(self) -> None:
+        """Put display into sleep mode."""
+        ...
 
 
 class WaveshareDisplay(DisplayBase):
@@ -22,21 +47,21 @@ class WaveshareDisplay(DisplayBase):
         """
         super().__init__(width, height)
         self.model = model
-        self.epd = None
+        self.epd: EPDProtocol | None = None
 
-    def _get_epd_module(self):
+    def _get_epd_module(self) -> EPDProtocol:
         """Get the appropriate EPD module for the display model."""
         try:
             if self.model == "7in3e":
-                from waveshare_epd import epd7in3e
+                from src.vendor.waveshare_epd import epd7in3e
 
                 return epd7in3e.EPD()
             elif self.model == "7in5":
-                from waveshare_epd import epd7in5
+                from src.vendor.waveshare_epd import epd7in5
 
                 return epd7in5.EPD()
             elif self.model == "7in5_V2":
-                from waveshare_epd import epd7in5_V2
+                from src.vendor.waveshare_epd import epd7in5_V2
 
                 return epd7in5_V2.EPD()
             else:
