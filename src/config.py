@@ -45,7 +45,10 @@ class PisugarConfig:
 
     enabled: bool = False
     wake_interval_minutes: int = 15
-    socket_path: str = "/tmp/pisugar-server.sock"
+    use_tcp: bool = True  # Use TCP instead of Unix socket (avoids permission issues)
+    tcp_host: str = "127.0.0.1"
+    tcp_port: int = 8423
+    socket_path: str = "/tmp/pisugar-server.sock"  # Only used if use_tcp = false
     message_wait_timeout: int = 30  # Seconds to wait for MQTT messages
     shutdown_after_display: bool = True
 
@@ -100,6 +103,9 @@ class Config:
         pisugar_config = PisugarConfig(
             enabled=pisugar_data.get("enabled", False),
             wake_interval_minutes=pisugar_data.get("wake_interval_minutes", 15),
+            use_tcp=pisugar_data.get("use_tcp", True),
+            tcp_host=pisugar_data.get("tcp_host", "127.0.0.1"),
+            tcp_port=pisugar_data.get("tcp_port", 8423),
             socket_path=pisugar_data.get("socket_path", "/tmp/pisugar-server.sock"),
             message_wait_timeout=pisugar_data.get("message_wait_timeout", 30),
             shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
@@ -221,6 +227,18 @@ class Config:
         if wake_interval := os.getenv("WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES"):
             data["pisugar"]["wake_interval_minutes"] = int(wake_interval)
             logger.debug(f"Overriding pisugar wake interval from environment: {wake_interval}")
+
+        if use_tcp := os.getenv("WAVESHARE_PISUGAR_USE_TCP"):
+            data["pisugar"]["use_tcp"] = use_tcp.lower() in ("true", "1", "yes")
+            logger.debug(f"Overriding pisugar use_tcp from environment: {use_tcp}")
+
+        if tcp_host := os.getenv("WAVESHARE_PISUGAR_TCP_HOST"):
+            data["pisugar"]["tcp_host"] = tcp_host
+            logger.debug(f"Overriding pisugar TCP host from environment: {tcp_host}")
+
+        if tcp_port := os.getenv("WAVESHARE_PISUGAR_TCP_PORT"):
+            data["pisugar"]["tcp_port"] = int(tcp_port)
+            logger.debug(f"Overriding pisugar TCP port from environment: {tcp_port}")
 
         if socket_path := os.getenv("WAVESHARE_PISUGAR_SOCKET_PATH"):
             data["pisugar"]["socket_path"] = socket_path

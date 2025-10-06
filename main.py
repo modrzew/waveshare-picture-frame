@@ -172,7 +172,14 @@ class WavesharePictureFrame:
             # Setup Pisugar RTC alarm for next wake-up
             if self.config.pisugar.shutdown_after_display:
                 try:
-                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+                    # Create Pisugar client (TCP or Unix socket based on config)
+                    if self.config.pisugar.use_tcp:
+                        pisugar = PisugarClient(
+                            host=self.config.pisugar.tcp_host,
+                            port=self.config.pisugar.tcp_port,
+                        )
+                    else:
+                        pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
 
                     # Get battery level for logging
                     battery_level = pisugar.get_battery_level()

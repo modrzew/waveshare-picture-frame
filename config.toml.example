@@ -23,7 +23,10 @@ format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 [pisugar]
 enabled = false                     # Enable battery mode with Pisugar RTC
 wake_interval_minutes = 15          # Minutes between wake-ups
-socket_path = "/tmp/pisugar-server.sock"  # Pisugar Unix socket path
+use_tcp = true                      # Use TCP instead of Unix socket (avoids permission issues)
+tcp_host = "127.0.0.1"              # Pisugar TCP host (only if use_tcp = true)
+tcp_port = 8423                     # Pisugar TCP port (only if use_tcp = true)
+socket_path = "/tmp/pisugar-server.sock"  # Pisugar Unix socket path (only if use_tcp = false)
 message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown system after displaying
 
@@ -39,6 +42,9 @@ shutdown_after_display = true       # Shutdown system after displaying
 # - WAVESHARE_LOGGING_LEVEL
 # - WAVESHARE_PISUGAR_ENABLED
 # - WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES
+# - WAVESHARE_PISUGAR_USE_TCP
+# - WAVESHARE_PISUGAR_TCP_HOST
+# - WAVESHARE_PISUGAR_TCP_PORT
 # - WAVESHARE_PISUGAR_SOCKET_PATH
 # - WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT
 # - WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY

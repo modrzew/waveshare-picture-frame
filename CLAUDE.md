@@ -65,6 +65,7 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
   3. Processes any queued/new messages
   4. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
   5. Shuts down the system
+- Pisugar communication: Uses TCP (127.0.0.1:8423) by default to avoid Unix socket permission issues. Can use Unix socket by setting `use_tcp = false` in config.
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
 - See `waveshare-frame.service` for deployment instructions
@@ -169,7 +170,10 @@ level = "INFO"         # DEBUG, INFO, WARNING, ERROR
 [pisugar]
 enabled = false                     # Enable battery mode
 wake_interval_minutes = 15          # Minutes between wake-ups
-socket_path = "/tmp/pisugar-server.sock"
+use_tcp = true                      # Use TCP instead of Unix socket (avoids permission issues)
+tcp_host = "127.0.0.1"              # Pisugar TCP host
+tcp_port = 8423                     # Pisugar TCP port
+socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false)
 message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown after processing
 ```
@@ -178,7 +182,7 @@ shutdown_after_display = true       # Shutdown after processing
 - `WAVESHARE_MQTT_HOST`, `WAVESHARE_MQTT_PORT`, `WAVESHARE_MQTT_USERNAME`, `WAVESHARE_MQTT_PASSWORD`, `WAVESHARE_MQTT_CLIENT_ID`
 - `WAVESHARE_DISPLAY_MODEL`, `WAVESHARE_DISPLAY_WIDTH`, `WAVESHARE_DISPLAY_HEIGHT`
 - `WAVESHARE_LOGGING_LEVEL`
-- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`
+- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_USE_TCP`, `WAVESHARE_PISUGAR_TCP_HOST`, `WAVESHARE_PISUGAR_TCP_PORT`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`
 
 ### Adding New Message Handlers
 

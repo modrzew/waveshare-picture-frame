@@ -8,15 +8,25 @@ logger = logging.getLogger(__name__)
 
 
 class PisugarClient:
-    """Client for communicating with Pisugar power manager via Unix socket."""
+    """Client for communicating with Pisugar power manager via Unix socket or TCP."""
 
-    def __init__(self, socket_path: str = "/tmp/pisugar-server.sock"):
+    def __init__(
+        self,
+        socket_path: str | None = None,
+        host: str = "127.0.0.1",
+        port: int = 8423,
+    ):
         """Initialize Pisugar client.
 
         Args:
-            socket_path: Path to Pisugar Unix domain socket
+            socket_path: Path to Pisugar Unix domain socket (if None, uses TCP)
+            host: TCP host (default: 127.0.0.1, only used if socket_path is None)
+            port: TCP port (default: 8423, only used if socket_path is None)
         """
         self.socket_path = socket_path
+        self.host = host
+        self.port = port
+        self.use_tcp = socket_path is None
 
     def _send_command(self, command: str) -> str:
         """Send command to Pisugar and return response.
@@ -32,13 +42,23 @@ class PisugarClient:
             TimeoutError: If command times out
         """
         try:
-            # Create Unix domain socket
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(5.0)  # 5 second timeout
-
-            # Connect to Pisugar
-            sock.connect(self.socket_path)
-            logger.debug(f"Sending command to Pisugar: {command}")
+            # Create socket (Unix domain or TCP)
+            if self.use_tcp:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5.0)  # 5 second timeout
+                sock.connect((self.host, self.port))
+                logger.debug(
+                    f"Sending command to Pisugar via TCP {self.host}:{self.port}: {command}"
+                )
+            else:
+                if self.socket_path is None:
+                    raise ValueError("socket_path must be provided when use_tcp is False")
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.settimeout(5.0)  # 5 second timeout
+                sock.connect(self.socket_path)
+                logger.debug(
+                    f"Sending command to Pisugar via Unix socket {self.socket_path}: {command}"
+                )
 
             # Send command (must end with newline)
             sock.sendall(f"{command}\n".encode())
@@ -65,6 +85,15 @@ class PisugarClient:
         except FileNotFoundError as e:
             raise ConnectionError(
                 f"Pisugar socket not found at {self.socket_path}. Is pisugar-server running?"
+            ) from e
+        except ConnectionRefusedError as e:
+            if self.use_tcp:
+                raise ConnectionError(
+                    f"Connection refused to Pisugar at {self.host}:{self.port}. "
+                    "Is pisugar-server running?"
+                ) from e
+            raise ConnectionError(
+                "Connection refused to Pisugar socket. Is pisugar-server running?"
             ) from e
         except TimeoutError as e:
             raise TimeoutError(f"Timeout waiting for Pisugar response to: {command}") from e
