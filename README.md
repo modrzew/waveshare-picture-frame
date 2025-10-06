@@ -6,9 +6,10 @@ A Python application that displays images on Waveshare e-ink displays via MQTT m
 
 - Receives MQTT messages and displays images from URLs on Waveshare e-ink displays
 - Supports multiple Waveshare display models (7in3e, 7in5, 7in5_V2)
-- Configurable via TOML file or environment variables
+- Configurable via TOML file
 - Runs as a systemd service on Raspberry Pi
 - Includes dry-run mode for development without hardware
+- Publishes preview thumbnails to Home Assistant via MQTT
 
 ## Installation
 

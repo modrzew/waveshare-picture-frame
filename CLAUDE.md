@@ -112,9 +112,7 @@ journalctl -u waveshare-frame -f
 - New message types can be added by creating new handlers without modifying MQTT client
 
 **Configuration system:**
-- Primary config loaded from TOML file (`config.toml`)
-- Environment variables override TOML values (format: `WAVESHARE_<SECTION>_<KEY>`)
-- Supports both file-based and systemd environment-based configuration
+- Configuration loaded from TOML file (`config.toml`)
 - Config classes use dataclasses for type safety
 
 **Display abstraction:**
@@ -127,10 +125,10 @@ journalctl -u waveshare-frame -f
 ### Key Files
 
 - **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode
-- **src/config.py**: TOML parsing + environment variable override logic; includes PisugarConfig
-- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports both always-on (`run_forever()`) and one-shot (`run_once()`) modes
+- **src/config.py**: TOML parsing and configuration dataclasses; includes MQTTConfig, DisplayConfig, LoggingConfig, PisugarConfig, PreviewConfig
+- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports both always-on (`run_forever()`) and one-shot (`run_once()`) modes; publishes JSON and binary payloads
 - **src/handlers/base.py**: Abstract handler interface (can_handle, handle, supported_actions)
-- **src/handlers/image_handler.py**: Fetches images from URLs and displays them
+- **src/handlers/image_handler.py**: Fetches images from URLs, displays them, and publishes preview thumbnails to Home Assistant via MQTT
 - **src/handlers/system_handler.py**: System control commands (mode switching, runtime control)
 - **src/state.py**: Shared application state for runtime mode switching
 - **src/display/base.py**: Abstract display interface with shared image resizing
@@ -179,7 +177,8 @@ The MQTT client calls `handler.can_handle(action)` for each registered handler u
 
 ### Configuration
 
-**File-based (config.toml):**
+Configuration is managed via `config.toml`:
+
 ```toml
 [mqtt]
 host = "192.168.1.101"
@@ -206,13 +205,27 @@ socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false
 message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown after processing
 battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
+
+[preview]
+enabled = true                      # Enable preview thumbnail publishing to Home Assistant
+topic = "home/displays/waveshare/preview"  # MQTT topic for preview image
+width = 320                         # Thumbnail width in pixels (height maintains aspect ratio)
+quality = 80                        # JPEG quality (1-100)
 ```
 
-**Environment overrides:**
-- `WAVESHARE_MQTT_HOST`, `WAVESHARE_MQTT_PORT`, `WAVESHARE_MQTT_USERNAME`, `WAVESHARE_MQTT_PASSWORD`, `WAVESHARE_MQTT_CLIENT_ID`
-- `WAVESHARE_DISPLAY_MODEL`, `WAVESHARE_DISPLAY_WIDTH`, `WAVESHARE_DISPLAY_HEIGHT`
-- `WAVESHARE_LOGGING_LEVEL`
-- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_USE_TCP`, `WAVESHARE_PISUGAR_TCP_HOST`, `WAVESHARE_PISUGAR_TCP_PORT`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`, `WAVESHARE_PISUGAR_BATTERY_TOPIC`
+### Home Assistant Integration
+
+**Preview Thumbnails:**
+- When `preview.enabled = true`, the application publishes a thumbnail (default 320px width) to MQTT whenever an image is displayed
+- Thumbnails are base64-encoded JPEG images published to the configured `preview.topic`
+- Home Assistant MQTT Discovery automatically creates an image entity alongside the battery sensor
+- Both entities are grouped under a single device in Home Assistant (identified by `client_id`)
+
+**MQTT Discovery:**
+- Battery sensor: `homeassistant/sensor/{client_id}_battery/config`
+- Preview image: `homeassistant/image/{client_id}_preview/config`
+- Device info is shared between entities for proper grouping
+- Discovery messages are retained and published automatically on startup (battery mode only)
 
 ### Adding New Message Handlers
 
