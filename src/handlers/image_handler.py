@@ -155,7 +155,7 @@ class ImageHandler(HandlerBase):
                 topic=self.preview_config.topic,
                 payload=base64_image,
                 qos=1,
-                retain=False,
+                retain=True,
             )
             logger.info(
                 f"Published preview thumbnail ({thumbnail.width}x{thumbnail.height}, "
