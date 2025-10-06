@@ -44,23 +44,34 @@ class DisplayBase(ABC):
         pass
 
     def resize_image(self, image: Image.Image, maintain_aspect: bool = True) -> Image.Image:
-        """Resize an image to fit the display.
+        """Resize an image to cover the display.
 
         Args:
             image: Image to resize
-            maintain_aspect: Whether to maintain aspect ratio
+            maintain_aspect: Whether to maintain aspect ratio (covers screen, crops if needed)
 
         Returns:
-            Resized image
+            Resized image that covers the entire display
         """
         if maintain_aspect:
-            image.thumbnail((self.width, self.height), Image.Resampling.LANCZOS)
-            # Create a new image with display dimensions and paste the resized image
-            new_image = Image.new("RGB", (self.width, self.height), (255, 255, 255))
-            # Center the image
-            x = (self.width - image.width) // 2
-            y = (self.height - image.height) // 2
-            new_image.paste(image, (x, y))
-            return new_image
+            # Calculate scale factors to cover the display (not fit inside it)
+            scale_width = self.width / image.width
+            scale_height = self.height / image.height
+
+            # Use the larger scale factor so the image covers the entire display
+            scale = max(scale_width, scale_height)
+
+            # Resize image to cover display
+            new_width = int(image.width * scale)
+            new_height = int(image.height * scale)
+            resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+            # Crop to display size (center the image)
+            left = (new_width - self.width) // 2
+            top = (new_height - self.height) // 2
+            right = left + self.width
+            bottom = top + self.height
+
+            return resized.crop((left, top, right, bottom))
         else:
             return image.resize((self.width, self.height), Image.Resampling.LANCZOS)
