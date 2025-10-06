@@ -1,6 +1,7 @@
 """Pisugar client for RTC alarm and power management."""
 
 import logging
+import re
 import socket
 from datetime import datetime
 
@@ -104,24 +105,38 @@ class PisugarClient:
         """Set RTC alarm for wake-up.
 
         Args:
-            wake_time: Time to wake up
+            wake_time: Time to wake up (local time)
             repeat: Repeat pattern (127 = all days, default)
 
         Raises:
             ConnectionError: If connection to Pisugar fails
+
+        Note:
+            Pisugar RTC alarm only stores time-of-day, not the date. The alarm will
+            trigger at the specified time according to the repeat pattern (weekdays).
+            The timezone must match the RTC's timezone.
         """
-        # Format time in ISO8601 format (YYYY-MM-DDTHH:MM:SS)
-        iso_time = wake_time.strftime("%Y-%m-%dT%H:%M:%S")
+        # Get RTC timezone to match its format
+        rtc_response = self._send_command("get rtc_time")
+        # Extract timezone offset using regex
+        # (e.g., "+11:00" from "rtc_time: 2025-10-06T12:08:51.000+11:00")
+        match = re.search(r"([+-]\d{2}:\d{2})", rtc_response)
+        timezone_offset = match.group(1) if match else "+00:00"
+
+        # Format time with timezone (date will be stored but only time-of-day is used for alarm)
+        iso_time = wake_time.strftime(f"%Y-%m-%dT%H:%M:%S{timezone_offset}")
         command = f"rtc_alarm_set {iso_time} {repeat}"
 
-        logger.info(f"Setting RTC alarm for {iso_time}")
+        logger.info(
+            f"Setting RTC alarm for {wake_time.strftime('%H:%M:%S')} (timezone: {timezone_offset})"
+        )
         response = self._send_command(command)
 
-        # Check if command succeeded (response is usually "single" or contains error)
-        if "error" in response.lower():
-            logger.warning(f"Error setting RTC alarm: {response}")
+        # Check if command succeeded (response should be "rtc_alarm_set: done")
+        if "done" in response.lower():
+            logger.debug("RTC alarm set successfully")
         else:
-            logger.debug(f"RTC alarm set successfully, response: {response}")
+            logger.warning(f"Unexpected response setting RTC alarm: {response}")
 
     def disable_rtc_alarm(self) -> None:
         """Disable RTC alarm.
@@ -165,15 +180,17 @@ class PisugarClient:
 
         Raises:
             ConnectionError: If connection to Pisugar fails
+
+        Note:
+            The date portion will always be 2000-01-01 as Pisugar only stores time-of-day.
         """
         try:
             response = self._send_command("get rtc_alarm_time")
-            # Response may be multi-line, look for line with "rtc_alarm_time:"
-            for line in response.split("\n"):
-                if "rtc_alarm_time:" in line.lower():
-                    parts = line.split(":", 1)
-                    if len(parts) >= 2:
-                        return parts[1].strip()
+            # Response format: "rtc_alarm_time: 2000-01-01T12:20:00.000+11:00"
+            if "rtc_alarm_time:" in response.lower():
+                parts = response.split(":", 1)
+                if len(parts) >= 2:
+                    return parts[1].strip()
             return None
         except Exception as e:
             logger.error(f"Failed to get RTC alarm time: {e}")

@@ -67,6 +67,7 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
   5. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
   6. Shuts down the system
 - Pisugar communication: Uses TCP (127.0.0.1:8423) by default to avoid Unix socket permission issues. Can use Unix socket by setting `use_tcp = false` in config.
+- Pisugar RTC alarm: Only stores time-of-day (HH:MM:SS), not full date. Alarm triggers at the specified time according to the repeat pattern (default: 127 = all days). Timezone must match RTC timezone (auto-detected from `get rtc_time`).
 - Battery status publishing: Publishes to `battery_topic` (default: `home/displays/waveshare/battery`) on each wake-up for monitoring
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
