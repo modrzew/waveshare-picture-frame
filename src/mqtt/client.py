@@ -118,6 +118,24 @@ class MQTTClient:
         except Exception as e:
             logger.error(f"Failed to publish to {topic}: {e}")
 
+    def publish_binary(
+        self, topic: str, payload: bytes, qos: int = 1, retain: bool = False
+    ) -> None:
+        """Publish binary data to a topic.
+
+        Args:
+            topic: MQTT topic to publish to
+            payload: Raw bytes payload
+            qos: Quality of Service level (0, 1, or 2)
+            retain: If True, message is retained by broker
+        """
+        try:
+            result = self.client.publish(topic, payload, qos=qos, retain=retain)
+            result.wait_for_publish(timeout=5.0)
+            logger.info(f"Published {len(payload)} bytes to {topic}")
+        except Exception as e:
+            logger.error(f"Failed to publish binary data to {topic}: {e}")
+
     def wait_for_handlers(self, timeout: float = 60.0) -> bool:
         """Wait for all active handlers to complete.
 

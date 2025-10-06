@@ -1,8 +1,9 @@
 """Handler for displaying images from URLs."""
 
+import base64
 import io
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import requests
 from PIL import Image
@@ -10,6 +11,10 @@ from PIL import Image
 from src.display.base import DisplayBase
 
 from .base import HandlerBase
+
+if TYPE_CHECKING:
+    from src.config import PreviewConfig
+    from src.mqtt.client import MQTTClient
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +24,26 @@ class ImageHandler(HandlerBase):
 
     display: DisplayBase  # Override to make display non-optional
 
-    def __init__(self, display: DisplayBase, timeout: int = 30):
+    def __init__(
+        self,
+        display: DisplayBase,
+        timeout: int = 30,
+        mqtt_client: "MQTTClient | None" = None,
+        preview_config: "PreviewConfig | None" = None,
+    ):
         """Initialize the image handler.
 
         Args:
             display: Display instance to use for rendering
             timeout: Request timeout in seconds
+            mqtt_client: Optional MQTT client for publishing previews
+            preview_config: Optional preview configuration
         """
         super().__init__(display)
         assert self.display is not None, "ImageHandler requires a display instance"
         self.timeout = timeout
+        self.mqtt_client = mqtt_client
+        self.preview_config = preview_config
 
     @property
     def supported_actions(self) -> list[str]:
@@ -86,6 +101,9 @@ class ImageHandler(HandlerBase):
             self.display.display_image(image)
             logger.info("Image displayed successfully")
 
+            # Publish preview thumbnail if configured
+            self._publish_preview(image)
+
         except requests.RequestException as e:
             logger.error(f"Failed to fetch image from {url}: {e}")
             raise
@@ -95,3 +113,54 @@ class ImageHandler(HandlerBase):
         except Exception as e:
             logger.error(f"Unexpected error handling image: {e}")
             raise
+
+    def _publish_preview(self, image: Image.Image) -> None:
+        """Generate and publish a preview thumbnail to MQTT.
+
+        Args:
+            image: The image to create a thumbnail from
+        """
+        if not self.preview_config or not self.preview_config.enabled:
+            return
+
+        if not self.mqtt_client:
+            logger.warning("Preview enabled but no MQTT client available")
+            return
+
+        try:
+            # Calculate thumbnail size maintaining aspect ratio
+            original_width, original_height = image.size
+            thumbnail_width = self.preview_config.width
+            thumbnail_height = int(original_height * (thumbnail_width / original_width))
+
+            # Create thumbnail
+            thumbnail = image.copy()
+            thumbnail.thumbnail((thumbnail_width, thumbnail_height), Image.Resampling.LANCZOS)
+
+            # Convert to JPEG bytes
+            buffer = io.BytesIO()
+            # Convert to RGB if necessary (e.g., RGBA images)
+            if thumbnail.mode in ("RGBA", "LA", "P"):
+                thumbnail = thumbnail.convert("RGB")
+            thumbnail.save(
+                buffer, format="JPEG", quality=self.preview_config.quality, optimize=True
+            )
+            jpeg_bytes = buffer.getvalue()
+
+            # Base64 encode
+            base64_image = base64.b64encode(jpeg_bytes)
+
+            # Publish to MQTT
+            self.mqtt_client.publish_binary(
+                topic=self.preview_config.topic,
+                payload=base64_image,
+                qos=1,
+                retain=False,
+            )
+            logger.info(
+                f"Published preview thumbnail ({thumbnail.width}x{thumbnail.height}, "
+                f"{len(base64_image)} bytes base64)"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to publish preview thumbnail: {e}")

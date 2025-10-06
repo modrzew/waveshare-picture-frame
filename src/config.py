@@ -55,6 +55,16 @@ class PisugarConfig:
 
 
 @dataclass
+class PreviewConfig:
+    """Preview image configuration for Home Assistant."""
+
+    enabled: bool = True
+    topic: str = "home/displays/waveshare/preview"  # MQTT topic for preview image
+    width: int = 320  # Thumbnail width in pixels
+    quality: int = 80  # JPEG quality (1-100)
+
+
+@dataclass
 class Config:
     """Application configuration."""
 
@@ -62,6 +72,7 @@ class Config:
     display: DisplayConfig
     logging: LoggingConfig
     pisugar: PisugarConfig
+    preview: PreviewConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
@@ -77,6 +88,7 @@ class Config:
         display_data = data.get("display", {})
         logging_data = data.get("logging", {})
         pisugar_data = data.get("pisugar", {})
+        preview_data = data.get("preview", {})
 
         mqtt_config = MQTTConfig(
             host=mqtt_data.get("host", "localhost"),
@@ -113,11 +125,19 @@ class Config:
             battery_topic=pisugar_data.get("battery_topic", "home/displays/waveshare/battery"),
         )
 
+        preview_config = PreviewConfig(
+            enabled=preview_data.get("enabled", False),
+            topic=preview_data.get("topic", "home/displays/waveshare/preview"),
+            width=preview_data.get("width", 320),
+            quality=preview_data.get("quality", 80),
+        )
+
         return cls(
             mqtt=mqtt_config,
             display=display_config,
             logging=logging_config,
             pisugar=pisugar_config,
+            preview=preview_config,
         )
 
     @classmethod
@@ -135,9 +155,6 @@ class Config:
         try:
             with open(file_path, "rb") as f:
                 data = tomllib.load(f)
-
-            # Override with environment variables if present
-            data = cls._override_with_env(data)
 
             config = cls.from_dict(data)
             logger.info("Configuration loaded successfully")
@@ -257,5 +274,25 @@ class Config:
         if battery_topic := os.getenv("WAVESHARE_PISUGAR_BATTERY_TOPIC"):
             data["pisugar"]["battery_topic"] = battery_topic
             logger.debug(f"Overriding pisugar battery topic from environment: {battery_topic}")
+
+        # Preview overrides
+        if "preview" not in data:
+            data["preview"] = {}
+
+        if preview_enabled := os.getenv("WAVESHARE_PREVIEW_ENABLED"):
+            data["preview"]["enabled"] = preview_enabled.lower() in ("true", "1", "yes")
+            logger.debug(f"Overriding preview enabled from environment: {preview_enabled}")
+
+        if preview_topic := os.getenv("WAVESHARE_PREVIEW_TOPIC"):
+            data["preview"]["topic"] = preview_topic
+            logger.debug(f"Overriding preview topic from environment: {preview_topic}")
+
+        if preview_width := os.getenv("WAVESHARE_PREVIEW_WIDTH"):
+            data["preview"]["width"] = int(preview_width)
+            logger.debug(f"Overriding preview width from environment: {preview_width}")
+
+        if preview_quality := os.getenv("WAVESHARE_PREVIEW_QUALITY"):
+            data["preview"]["quality"] = int(preview_quality)
+            logger.debug(f"Overriding preview quality from environment: {preview_quality}")
 
         return data

@@ -31,25 +31,11 @@ message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown system after displaying
 battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
 
-# Note: Environment variables can override these settings:
-# - WAVESHARE_MQTT_HOST
-# - WAVESHARE_MQTT_PORT
-# - WAVESHARE_MQTT_USERNAME
-# - WAVESHARE_MQTT_PASSWORD
-# - WAVESHARE_MQTT_CLIENT_ID
-# - WAVESHARE_DISPLAY_MODEL
-# - WAVESHARE_DISPLAY_WIDTH
-# - WAVESHARE_DISPLAY_HEIGHT
-# - WAVESHARE_LOGGING_LEVEL
-# - WAVESHARE_PISUGAR_ENABLED
-# - WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES
-# - WAVESHARE_PISUGAR_USE_TCP
-# - WAVESHARE_PISUGAR_TCP_HOST
-# - WAVESHARE_PISUGAR_TCP_PORT
-# - WAVESHARE_PISUGAR_SOCKET_PATH
-# - WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT
-# - WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY
-# - WAVESHARE_PISUGAR_BATTERY_TOPIC
+[preview]
+enabled = true                      # Enable preview thumbnail publishing to Home Assistant
+topic = "home/displays/waveshare/preview"  # MQTT topic for preview image
+width = 320                         # Thumbnail width in pixels (height maintains aspect ratio)
+quality = 80                        # JPEG quality (1-100, higher = better quality but larger size)
 
 # Example MQTT message format:
 # {

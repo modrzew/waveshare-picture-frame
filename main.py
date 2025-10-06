@@ -88,24 +88,8 @@ class WavesharePictureFrame:
         self.display.init()
         logger.info("Display setup complete")
 
-    def setup_handlers(self):
-        """Initialize message handlers."""
-        logger.info("Setting up handlers")
-
-        assert self.display is not None, "Display must be initialized before setting up handlers"
-
-        # Add system handler (for mode control)
-        system_handler = SystemHandler(self.app_state)
-        self.handlers.append(system_handler)
-
-        # Add image handler
-        image_handler = ImageHandler(self.display)
-        self.handlers.append(image_handler)
-
-        logger.info(f"Initialized {len(self.handlers)} handler(s)")
-
     def setup_mqtt(self):
-        """Initialize MQTT client and register handlers."""
+        """Initialize MQTT client (but don't connect yet)."""
         logger.info("Setting up MQTT client")
 
         self.mqtt_client = MQTTClient(
@@ -117,17 +101,61 @@ class WavesharePictureFrame:
             shutdown_timeout=self.config.mqtt.shutdown_timeout,
         )
 
-        # Register handlers
-        for handler in self.handlers:
-            self.mqtt_client.register_handler(handler)
-
         # Add topics
         for topic in self.config.mqtt.topics:
             self.mqtt_client.add_topic(topic)
 
-        # Connect to broker
+        logger.info("MQTT client initialized")
+
+    def setup_handlers(self):
+        """Initialize message handlers and register them with MQTT client."""
+        logger.info("Setting up handlers")
+
+        assert self.display is not None, "Display must be initialized before setting up handlers"
+        assert self.mqtt_client is not None, (
+            "MQTT client must be initialized before setting up handlers"
+        )
+
+        # Add system handler (for mode control)
+        system_handler = SystemHandler(self.app_state)
+        self.handlers.append(system_handler)
+
+        # Add image handler with preview support
+        image_handler = ImageHandler(
+            display=self.display,
+            mqtt_client=self.mqtt_client,
+            preview_config=self.config.preview,
+        )
+        self.handlers.append(image_handler)
+
+        # Register handlers with MQTT client
+        for handler in self.handlers:
+            self.mqtt_client.register_handler(handler)
+
+        logger.info(f"Initialized {len(self.handlers)} handler(s)")
+
+    def connect_mqtt(self):
+        """Connect to MQTT broker."""
+        assert self.mqtt_client is not None, "MQTT client must be initialized"
+        logger.info("Connecting to MQTT broker")
         self.mqtt_client.connect()
-        logger.info("MQTT setup complete")
+        logger.info("MQTT connected")
+
+    def _get_device_info(self) -> tuple[str, str, dict]:
+        """Get device name, ID, and info for Home Assistant discovery.
+
+        Returns:
+            Tuple of (device_name, device_id, device_info_dict)
+        """
+        device_name = self.config.mqtt.client_id or "Waveshare"
+        device_id = device_name.lower().replace(" ", "_")
+        device_info = {
+            "identifiers": [f"{device_id}_frame"],
+            "name": f"{device_name} Picture Frame",
+            "model": self.config.display.model,
+            "manufacturer": "Waveshare",
+        }
+        return device_name, device_id, device_info
 
     def run(self):
         """Run the application."""
@@ -143,8 +171,9 @@ class WavesharePictureFrame:
 
             # Setup components
             self.setup_display()
-            self.setup_handlers()
             self.setup_mqtt()
+            self.setup_handlers()
+            self.connect_mqtt()
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
@@ -165,18 +194,18 @@ class WavesharePictureFrame:
 
             # Setup components
             self.setup_display()
-            self.setup_handlers()
             self.setup_mqtt()
+            self.setup_handlers()
+            self.connect_mqtt()
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
-            # Publish Home Assistant MQTT discovery message
+            # Publish Home Assistant MQTT discovery messages
             try:
-                # Use client_id or fallback to "Waveshare"
-                device_name = self.config.mqtt.client_id or "Waveshare"
-                device_id = device_name.lower().replace(" ", "_")
+                device_name, device_id, device_info = self._get_device_info()
 
-                discovery_payload = {
+                # Battery sensor discovery
+                battery_discovery = {
                     "name": f"{device_name} Battery",
                     "state_topic": self.config.pisugar.battery_topic,
                     "value_template": "{{ value_json.battery_level }}",
@@ -184,22 +213,36 @@ class WavesharePictureFrame:
                     "device_class": "battery",
                     "state_class": "measurement",
                     "unique_id": f"{device_id}_battery",
-                    "device": {
-                        "identifiers": [f"{device_id}_frame"],
-                        "name": f"{device_name} Picture Frame",
-                        "model": self.config.display.model,
-                        "manufacturer": "Waveshare",
-                    },
+                    "device": device_info,
                 }
                 self.mqtt_client.publish(
                     topic=f"homeassistant/sensor/{device_id}_battery/config",
-                    payload=discovery_payload,
+                    payload=battery_discovery,
                     qos=1,
                     retain=True,
                 )
-                logger.debug("Published Home Assistant discovery message")
+                logger.debug("Published battery discovery message")
+
+                # Preview image discovery (if enabled)
+                if self.config.preview.enabled:
+                    preview_discovery = {
+                        "name": f"{device_name} Preview",
+                        "image_topic": self.config.preview.topic,
+                        "image_encoding": "b64",
+                        "content_type": "image/jpeg",
+                        "unique_id": f"{device_id}_preview",
+                        "device": device_info,
+                    }
+                    self.mqtt_client.publish(
+                        topic=f"homeassistant/image/{device_id}_preview/config",
+                        payload=preview_discovery,
+                        qos=1,
+                        retain=True,
+                    )
+                    logger.debug("Published preview image discovery message")
+
             except Exception as e:
-                logger.warning(f"Failed to publish HA discovery message: {e}")
+                logger.warning(f"Failed to publish HA discovery messages: {e}")
 
             # Publish battery status to MQTT
             try:
