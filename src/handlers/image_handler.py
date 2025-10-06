@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 class ImageHandler(HandlerBase):
     """Handler for loading and displaying images from URLs."""
 
+    display: DisplayBase  # Override to make display non-optional
+
     def __init__(self, display: DisplayBase, timeout: int = 30):
         """Initialize the image handler.
 
@@ -25,6 +27,7 @@ class ImageHandler(HandlerBase):
             timeout: Request timeout in seconds
         """
         super().__init__(display)
+        assert self.display is not None, "ImageHandler requires a display instance"
         self.timeout = timeout
 
     @property

@@ -12,8 +12,10 @@ from pathlib import Path
 from src.config import Config
 from src.display.waveshare import WaveshareDisplay
 from src.handlers.image_handler import ImageHandler
+from src.handlers.system_handler import SystemHandler
 from src.mqtt.client import MQTTClient
 from src.pisugar.client import PisugarClient
+from src.state import AppState
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class WavesharePictureFrame:
         self.mqtt_client = None
         self.handlers = []
         self._shutting_down = False
+        self.app_state = AppState()
 
         # Setup logging first
         self.setup_logging()
@@ -90,6 +93,10 @@ class WavesharePictureFrame:
         logger.info("Setting up handlers")
 
         assert self.display is not None, "Display must be initialized before setting up handlers"
+
+        # Add system handler (for mode control)
+        system_handler = SystemHandler(self.app_state)
+        self.handlers.append(system_handler)
 
         # Add image handler
         image_handler = ImageHandler(self.display)
@@ -197,6 +204,17 @@ class WavesharePictureFrame:
             messages_processed = self.mqtt_client.run_once(timeout=timeout)
 
             logger.info(f"Battery mode: processed {messages_processed} message(s)")
+
+            # Check if continuous mode was enabled via MQTT command
+            if self.app_state.is_continuous_mode():
+                logger.info(
+                    "Continuous mode enabled - switching to always-on mode. "
+                    "Device will not shutdown automatically."
+                )
+                # Reconnect MQTT and run forever
+                self.mqtt_client.connect()
+                self.mqtt_client.run_forever()
+                return  # Skip RTC alarm and shutdown
 
             # Setup Pisugar RTC alarm for next wake-up
             if self.config.pisugar.shutdown_after_display:

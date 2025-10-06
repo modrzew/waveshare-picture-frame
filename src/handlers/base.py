@@ -9,11 +9,11 @@ from src.display.base import DisplayBase
 class HandlerBase(ABC):
     """Abstract base class for message handlers."""
 
-    def __init__(self, display: DisplayBase):
+    def __init__(self, display: DisplayBase | None = None):
         """Initialize the handler.
 
         Args:
-            display: Display instance to use for rendering
+            display: Display instance to use for rendering (optional for system handlers)
         """
         self.display = display
 

@@ -70,6 +70,7 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 - Battery status publishing: Publishes to `battery_topic` (default: `home/displays/waveshare/battery`) on each wake-up for monitoring
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
+- **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.
 - See `waveshare-frame.service` for deployment instructions
 
 **Signal handling:**
@@ -128,6 +129,8 @@ journalctl -u waveshare-frame -f
 - **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports both always-on (`run_forever()`) and one-shot (`run_once()`) modes
 - **src/handlers/base.py**: Abstract handler interface (can_handle, handle, supported_actions)
 - **src/handlers/image_handler.py**: Fetches images from URLs and displays them
+- **src/handlers/system_handler.py**: System control commands (mode switching, runtime control)
+- **src/state.py**: Shared application state for runtime mode switching
 - **src/display/base.py**: Abstract display interface with shared image resizing
 - **src/display/waveshare.py**: Real hardware implementation using waveshare-epd library
 - **src/display/mock.py**: Mock display for development without hardware
@@ -149,6 +152,28 @@ Messages must be JSON with `action` and optional `data` fields:
 ```
 
 The MQTT client calls `handler.can_handle(action)` for each registered handler until one returns `True`, then calls `handler.handle(data)`.
+
+**Supported Actions:**
+
+1. **display_image** - Display an image from URL
+   ```json
+   {
+     "action": "display_image",
+     "data": {
+       "url": "https://example.com/image.jpg",
+       "resize": true,
+       "clear_first": false
+     }
+   }
+   ```
+
+2. **enter_continuous_mode** - Switch from battery mode to continuous mode
+   ```json
+   {
+     "action": "enter_continuous_mode"
+   }
+   ```
+   When in battery mode, this prevents the scheduled shutdown and switches to always-on mode. Useful for maintenance, debugging, or SSH access. Device will stay connected to MQTT until manually rebooted.
 
 ### Configuration
 

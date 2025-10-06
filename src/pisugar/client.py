@@ -117,9 +117,11 @@ class PisugarClient:
         logger.info(f"Setting RTC alarm for {iso_time}")
         response = self._send_command(command)
 
-        # Check if command succeeded
-        if "rtc_alarm_set" not in response.lower():
-            logger.warning(f"Unexpected response from set_rtc_alarm: {response}")
+        # Check if command succeeded (response is usually "single" or contains error)
+        if "error" in response.lower():
+            logger.warning(f"Error setting RTC alarm: {response}")
+        else:
+            logger.debug(f"RTC alarm set successfully, response: {response}")
 
     def disable_rtc_alarm(self) -> None:
         """Disable RTC alarm.
