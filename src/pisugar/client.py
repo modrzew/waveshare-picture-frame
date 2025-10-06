@@ -43,8 +43,20 @@ class PisugarClient:
             # Send command (must end with newline)
             sock.sendall(f"{command}\n".encode())
 
-            # Receive response
-            response = sock.recv(1024).decode("utf-8").strip()
+            # Receive response (read all available data)
+            sock.settimeout(1.0)  # 1 second timeout for reading
+            response_parts = []
+            while True:
+                try:
+                    chunk = sock.recv(1024).decode("utf-8")
+                    if not chunk:
+                        break
+                    response_parts.append(chunk)
+                except TimeoutError:
+                    # No more data available
+                    break
+
+            response = "".join(response_parts).strip()
             logger.debug(f"Pisugar response: {response}")
 
             sock.close()
@@ -100,12 +112,14 @@ class PisugarClient:
         """
         try:
             response = self._send_command("get battery")
-            # Response format: "battery: 85.5"
-            if "battery:" in response.lower():
-                parts = response.split(":")
-                if len(parts) >= 2:
-                    battery_str = parts[1].strip().rstrip("%")
-                    return float(battery_str)
+            # Response format: "single\nbattery: 98.37336" (multi-line)
+            # Look for line containing "battery:"
+            for line in response.split("\n"):
+                if "battery:" in line.lower():
+                    parts = line.split(":")
+                    if len(parts) >= 2:
+                        battery_str = parts[1].strip().rstrip("%")
+                        return float(battery_str)
             logger.warning(f"Unexpected battery response: {response}")
             return None
         except Exception as e:
@@ -123,11 +137,12 @@ class PisugarClient:
         """
         try:
             response = self._send_command("get rtc_alarm_time")
-            # Response format: "rtc_alarm_time: 2025-10-06T15:30:00"
-            if "rtc_alarm_time:" in response.lower():
-                parts = response.split(":", 1)
-                if len(parts) >= 2:
-                    return parts[1].strip()
+            # Response may be multi-line, look for line with "rtc_alarm_time:"
+            for line in response.split("\n"):
+                if "rtc_alarm_time:" in line.lower():
+                    parts = line.split(":", 1)
+                    if len(parts) >= 2:
+                        return parts[1].strip()
             return None
         except Exception as e:
             logger.error(f"Failed to get RTC alarm time: {e}")
@@ -144,7 +159,7 @@ class PisugarClient:
         """
         try:
             response = self._send_command("get rtc_alarm_enabled")
-            # Response format: "rtc_alarm_enabled: true" or "rtc_alarm_enabled: false"
+            # Response may be multi-line, check if "true" appears in response
             return "true" in response.lower()
         except Exception as e:
             logger.error(f"Failed to check RTC alarm status: {e}")
