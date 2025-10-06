@@ -222,10 +222,10 @@ quality = 80                        # JPEG quality (1-100)
 - Both entities are grouped under a single device in Home Assistant (identified by `client_id`)
 
 **MQTT Discovery:**
-- Battery sensor: `homeassistant/sensor/{client_id}_battery/config`
-- Preview image: `homeassistant/image/{client_id}_preview/config`
+- Battery sensor: `homeassistant/sensor/{client_id}_battery/config` (battery mode only)
+- Preview image: `homeassistant/image/{client_id}_preview/config` (both modes)
 - Device info is shared between entities for proper grouping
-- Discovery messages are retained and published automatically on startup (battery mode only)
+- Discovery messages are retained and published automatically on startup
 
 ### Adding New Message Handlers
 

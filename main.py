@@ -177,6 +177,30 @@ class WavesharePictureFrame:
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
+            # Publish Home Assistant MQTT discovery messages (if preview enabled)
+            if self.config.preview.enabled:
+                try:
+                    device_name, device_id, device_info = self._get_device_info()
+
+                    preview_discovery = {
+                        "name": f"{device_name} Preview",
+                        "image_topic": self.config.preview.topic,
+                        "image_encoding": "b64",
+                        "content_type": "image/jpeg",
+                        "unique_id": f"{device_id}_preview",
+                        "device": device_info,
+                    }
+                    self.mqtt_client.publish(
+                        topic=f"homeassistant/image/{device_id}_preview/config",
+                        payload=preview_discovery,
+                        qos=1,
+                        retain=True,
+                    )
+                    logger.info("Published Home Assistant preview discovery message")
+
+                except Exception as e:
+                    logger.warning(f"Failed to publish HA discovery message: {e}")
+
             # Run MQTT client (blocking)
             self.mqtt_client.run_forever()
 

@@ -125,7 +125,7 @@ class Config:
         )
 
         preview_config = PreviewConfig(
-            enabled=preview_data.get("enabled", False),
+            enabled=preview_data.get("enabled", True),
             topic=preview_data.get("topic", "home/displays/waveshare/preview"),
             width=preview_data.get("width", 320),
             quality=preview_data.get("quality", 80),
