@@ -69,6 +69,7 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 - Pisugar communication: Uses TCP (127.0.0.1:8423) by default to avoid Unix socket permission issues. Can use Unix socket by setting `use_tcp = false` in config.
 - Pisugar RTC alarm: Only stores time-of-day (HH:MM:SS), not full date. Alarm triggers at the specified time according to the repeat pattern (default: 127 = all days). Timezone must match RTC timezone (auto-detected from `get rtc_time`).
 - Battery status publishing: Publishes to `battery_topic` (default: `home/displays/waveshare/battery`) on each wake-up for monitoring
+- Home Assistant MQTT Discovery: Automatically publishes discovery message to `homeassistant/sensor/{client_id}_battery/config` (retained) so HA auto-detects the battery sensor without manual configuration. Device name is based on `client_id` (defaults to "Waveshare" if not set)
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
 - **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.

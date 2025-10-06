@@ -101,17 +101,18 @@ class MQTTClient:
             logger.error(f"Failed to connect to MQTT broker: {e}")
             raise
 
-    def publish(self, topic: str, payload: dict, qos: int = 1) -> None:
+    def publish(self, topic: str, payload: dict, qos: int = 1, retain: bool = False) -> None:
         """Publish a message to a topic.
 
         Args:
             topic: MQTT topic to publish to
             payload: Dictionary payload (will be JSON-encoded)
             qos: Quality of Service level (0, 1, or 2)
+            retain: If True, message is retained by broker
         """
         try:
             json_payload = json.dumps(payload)
-            result = self.client.publish(topic, json_payload, qos=qos)
+            result = self.client.publish(topic, json_payload, qos=qos, retain=retain)
             result.wait_for_publish(timeout=5.0)
             logger.info(f"Published to {topic}: {json_payload}")
         except Exception as e:

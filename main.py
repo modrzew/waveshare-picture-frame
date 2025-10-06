@@ -170,6 +170,37 @@ class WavesharePictureFrame:
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
+            # Publish Home Assistant MQTT discovery message
+            try:
+                # Use client_id or fallback to "Waveshare"
+                device_name = self.config.mqtt.client_id or "Waveshare"
+                device_id = device_name.lower().replace(" ", "_")
+
+                discovery_payload = {
+                    "name": f"{device_name} Battery",
+                    "state_topic": self.config.pisugar.battery_topic,
+                    "value_template": "{{ value_json.battery_level }}",
+                    "unit_of_measurement": "%",
+                    "device_class": "battery",
+                    "state_class": "measurement",
+                    "unique_id": f"{device_id}_battery",
+                    "device": {
+                        "identifiers": [f"{device_id}_frame"],
+                        "name": f"{device_name} Picture Frame",
+                        "model": self.config.display.model,
+                        "manufacturer": "Waveshare",
+                    },
+                }
+                self.mqtt_client.publish(
+                    topic=f"homeassistant/sensor/{device_id}_battery/config",
+                    payload=discovery_payload,
+                    qos=1,
+                    retain=True,
+                )
+                logger.debug("Published Home Assistant discovery message")
+            except Exception as e:
+                logger.warning(f"Failed to publish HA discovery message: {e}")
+
             # Publish battery status to MQTT
             try:
                 # Create Pisugar client to read battery level
