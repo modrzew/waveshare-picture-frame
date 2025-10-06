@@ -101,6 +101,22 @@ class MQTTClient:
             logger.error(f"Failed to connect to MQTT broker: {e}")
             raise
 
+    def publish(self, topic: str, payload: dict, qos: int = 1) -> None:
+        """Publish a message to a topic.
+
+        Args:
+            topic: MQTT topic to publish to
+            payload: Dictionary payload (will be JSON-encoded)
+            qos: Quality of Service level (0, 1, or 2)
+        """
+        try:
+            json_payload = json.dumps(payload)
+            result = self.client.publish(topic, json_payload, qos=qos)
+            result.wait_for_publish(timeout=5.0)
+            logger.info(f"Published to {topic}: {json_payload}")
+        except Exception as e:
+            logger.error(f"Failed to publish to {topic}: {e}")
+
     def wait_for_handlers(self, timeout: float = 60.0) -> bool:
         """Wait for all active handlers to complete.
 

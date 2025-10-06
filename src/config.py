@@ -51,6 +51,7 @@ class PisugarConfig:
     socket_path: str = "/tmp/pisugar-server.sock"  # Only used if use_tcp = false
     message_wait_timeout: int = 30  # Seconds to wait for MQTT messages
     shutdown_after_display: bool = True
+    battery_topic: str = "home/displays/waveshare/battery"  # MQTT topic for battery status
 
 
 @dataclass
@@ -109,6 +110,7 @@ class Config:
             socket_path=pisugar_data.get("socket_path", "/tmp/pisugar-server.sock"),
             message_wait_timeout=pisugar_data.get("message_wait_timeout", 30),
             shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
+            battery_topic=pisugar_data.get("battery_topic", "home/displays/waveshare/battery"),
         )
 
         return cls(
@@ -251,5 +253,9 @@ class Config:
         if shutdown := os.getenv("WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY"):
             data["pisugar"]["shutdown_after_display"] = shutdown.lower() in ("true", "1", "yes")
             logger.debug(f"Overriding pisugar shutdown after display from environment: {shutdown}")
+
+        if battery_topic := os.getenv("WAVESHARE_PISUGAR_BATTERY_TOPIC"):
+            data["pisugar"]["battery_topic"] = battery_topic
+            logger.debug(f"Overriding pisugar battery topic from environment: {battery_topic}")
 
         return data

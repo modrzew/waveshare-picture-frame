@@ -163,6 +163,35 @@ class WavesharePictureFrame:
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
+            # Publish battery status to MQTT
+            try:
+                # Create Pisugar client to read battery level
+                if self.config.pisugar.use_tcp:
+                    pisugar = PisugarClient(
+                        host=self.config.pisugar.tcp_host,
+                        port=self.config.pisugar.tcp_port,
+                    )
+                else:
+                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+
+                battery_level = pisugar.get_battery_level()
+                if battery_level is not None:
+                    # Publish battery status
+                    battery_payload = {
+                        "battery_level": battery_level,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    self.mqtt_client.publish(
+                        topic=self.config.pisugar.battery_topic,
+                        payload=battery_payload,
+                        qos=1,
+                    )
+                    logger.info(f"Published battery level: {battery_level:.1f}%")
+                else:
+                    logger.warning("Could not read battery level from Pisugar")
+            except Exception as e:
+                logger.error(f"Failed to publish battery status: {e}")
+
             # Check for messages with timeout
             timeout = self.config.pisugar.message_wait_timeout
             messages_processed = self.mqtt_client.run_once(timeout=timeout)

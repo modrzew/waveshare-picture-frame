@@ -29,6 +29,7 @@ tcp_port = 8423                     # Pisugar TCP port (only if use_tcp = true)
 socket_path = "/tmp/pisugar-server.sock"  # Pisugar Unix socket path (only if use_tcp = false)
 message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown system after displaying
+battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
 
 # Note: Environment variables can override these settings:
 # - WAVESHARE_MQTT_HOST
@@ -48,6 +49,7 @@ shutdown_after_display = true       # Shutdown system after displaying
 # - WAVESHARE_PISUGAR_SOCKET_PATH
 # - WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT
 # - WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY
+# - WAVESHARE_PISUGAR_BATTERY_TOPIC
 
 # Example MQTT message format:
 # {

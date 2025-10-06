@@ -61,11 +61,13 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 - Designed for Pisugar 3 battery-powered operation on Raspberry Pi Zero W
 - Wake-check-display-sleep cycle:
   1. Connects to MQTT with QoS 2 + clean_session=false (queues messages while offline)
-  2. Waits for messages (configurable timeout, default 30s)
-  3. Processes any queued/new messages
-  4. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
-  5. Shuts down the system
+  2. Publishes battery status to configured MQTT topic (JSON: `{"battery_level": 98.37, "timestamp": "2025-10-06T10:38:00"}`)
+  3. Waits for messages (configurable timeout, default 30s)
+  4. Processes any queued/new messages
+  5. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
+  6. Shuts down the system
 - Pisugar communication: Uses TCP (127.0.0.1:8423) by default to avoid Unix socket permission issues. Can use Unix socket by setting `use_tcp = false` in config.
+- Battery status publishing: Publishes to `battery_topic` (default: `home/displays/waveshare/battery`) on each wake-up for monitoring
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
 - See `waveshare-frame.service` for deployment instructions
@@ -176,13 +178,14 @@ tcp_port = 8423                     # Pisugar TCP port
 socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false)
 message_wait_timeout = 30           # Seconds to wait for MQTT messages
 shutdown_after_display = true       # Shutdown after processing
+battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
 ```
 
 **Environment overrides:**
 - `WAVESHARE_MQTT_HOST`, `WAVESHARE_MQTT_PORT`, `WAVESHARE_MQTT_USERNAME`, `WAVESHARE_MQTT_PASSWORD`, `WAVESHARE_MQTT_CLIENT_ID`
 - `WAVESHARE_DISPLAY_MODEL`, `WAVESHARE_DISPLAY_WIDTH`, `WAVESHARE_DISPLAY_HEIGHT`
 - `WAVESHARE_LOGGING_LEVEL`
-- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_USE_TCP`, `WAVESHARE_PISUGAR_TCP_HOST`, `WAVESHARE_PISUGAR_TCP_PORT`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`
+- `WAVESHARE_PISUGAR_ENABLED`, `WAVESHARE_PISUGAR_WAKE_INTERVAL_MINUTES`, `WAVESHARE_PISUGAR_USE_TCP`, `WAVESHARE_PISUGAR_TCP_HOST`, `WAVESHARE_PISUGAR_TCP_PORT`, `WAVESHARE_PISUGAR_SOCKET_PATH`, `WAVESHARE_PISUGAR_MESSAGE_WAIT_TIMEOUT`, `WAVESHARE_PISUGAR_SHUTDOWN_AFTER_DISPLAY`, `WAVESHARE_PISUGAR_BATTERY_TOPIC`
 
 ### Adding New Message Handlers
 
