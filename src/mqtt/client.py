@@ -88,6 +88,11 @@ class MQTTClient:
         """Connect to the MQTT broker."""
         try:
             logger.info(f"Connecting to MQTT broker {self.broker_host}:{self.broker_port}")
+
+            # Reset shutdown flag to allow message processing after reconnect
+            with self._handler_lock:
+                self._shutting_down = False
+
             self.client.connect(self.broker_host, self.broker_port, keepalive=60)
             self.client.loop_start()
 
@@ -363,7 +368,7 @@ class MQTTClient:
         try:
             logger.info("MQTT client running. Press Ctrl+C to stop.")
             while True:
-                self.connected.wait()
+                time.sleep(1)  # Keep main thread alive while background thread processes messages
         except KeyboardInterrupt:
             logger.info("Shutting down MQTT client")
             self.disconnect()
