@@ -213,6 +213,9 @@ class WavesharePictureFrame:
 
     def run_battery_mode(self):
         """Run in battery-powered mode with Pisugar RTC wake-up."""
+        # Track battery mode status for reporting to Home Assistant
+        status = "ok"  # Possible values: "ok", "rtc_failure", "image_fetch_failed"
+
         try:
             logger.info("Starting Waveshare Picture Frame (battery mode)")
 
@@ -265,8 +268,41 @@ class WavesharePictureFrame:
                     )
                     logger.debug("Published preview image discovery message")
 
+                # Status sensor discovery
+                status_discovery = {
+                    "name": f"{device_name} Status",
+                    "state_topic": self.config.pisugar.status_topic,
+                    "value_template": "{{ value_json.status }}",
+                    "device_class": "enum",
+                    "options": ["ok", "rtc_failure", "image_fetch_failed"],
+                    "unique_id": f"{device_id}_status",
+                    "device": device_info,
+                }
+                self.mqtt_client.publish(
+                    topic=f"homeassistant/sensor/{device_id}_status/config",
+                    payload=status_discovery,
+                    qos=1,
+                    retain=True,
+                )
+                logger.debug("Published status sensor discovery message")
+
             except Exception as e:
                 logger.warning(f"Failed to publish HA discovery messages: {e}")
+
+            # Clear RTC alarm flag from previous wake-up (critical for subsequent alarms to work)
+            try:
+                if self.config.pisugar.use_tcp:
+                    pisugar = PisugarClient(
+                        host=self.config.pisugar.tcp_host,
+                        port=self.config.pisugar.tcp_port,
+                    )
+                else:
+                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+
+                pisugar.clear_rtc_alarm_flag()
+                logger.info("RTC alarm flag cleared - subsequent alarms will work")
+            except Exception as e:
+                logger.warning(f"Failed to clear RTC alarm flag: {e}")
 
             # Publish battery status to MQTT
             try:
@@ -299,9 +335,14 @@ class WavesharePictureFrame:
 
             # Check for messages with timeout
             timeout = self.config.pisugar.message_wait_timeout
-            messages_processed = self.mqtt_client.run_once(timeout=timeout)
-
-            logger.info(f"Battery mode: processed {messages_processed} message(s)")
+            try:
+                messages_processed = self.mqtt_client.run_once(timeout=timeout)
+                logger.info(f"Battery mode: processed {messages_processed} message(s)")
+            except Exception as e:
+                # Image fetch or other handler failures are logged but don't prevent shutdown
+                # as long as RTC alarm can be set
+                logger.error(f"Error processing messages: {e}")
+                status = "image_fetch_failed"
 
             # Check if continuous mode was enabled via MQTT command
             if self.app_state.is_continuous_mode():
@@ -315,6 +356,7 @@ class WavesharePictureFrame:
                 return  # Skip RTC alarm and shutdown
 
             # Setup Pisugar RTC alarm for next wake-up
+            rtc_alarm_verified = False
             if self.config.pisugar.shutdown_after_display:
                 try:
                     # Create Pisugar client (TCP or Unix socket based on config)
@@ -346,28 +388,53 @@ class WavesharePictureFrame:
                     if pisugar.is_rtc_alarm_enabled():
                         alarm_time = pisugar.get_rtc_alarm_time()
                         logger.info(f"RTC alarm confirmed: {alarm_time}")
+                        rtc_alarm_verified = True
                     else:
-                        logger.warning("RTC alarm may not have been set correctly")
+                        logger.error("RTC alarm verification failed - alarm not enabled")
+                        status = "rtc_failure"
 
                 except Exception as e:
                     logger.error(f"Failed to set RTC alarm: {e}", exc_info=True)
-                    logger.warning("Continuing without RTC alarm")
+                    status = "rtc_failure"
 
-                # Shutdown the system
-                logger.info("Initiating system shutdown")
+                # Publish status to Home Assistant
                 try:
-                    # Use subprocess to run shutdown command
-                    # Note: Requires passwordless sudo for shutdown command
-                    subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
-                except subprocess.CalledProcessError as e:
-                    logger.error(f"Failed to shutdown system: {e}")
-                    logger.error(
-                        "Make sure the user has passwordless sudo for shutdown. "
-                        "Add to /etc/sudoers.d/waveshare-frame:\n"
-                        "waveshare ALL=(ALL) NOPASSWD: /sbin/shutdown"
+                    status_payload = {
+                        "status": status,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    self.mqtt_client.publish(
+                        topic=self.config.pisugar.status_topic,
+                        payload=status_payload,
+                        qos=1,
+                        retain=True,
                     )
-                except FileNotFoundError:
-                    logger.error("shutdown command not found")
+                    logger.info(f"Published system status: {status}")
+                except Exception as e:
+                    logger.error(f"Failed to publish status: {e}")
+
+                # Only shutdown if RTC alarm was successfully verified
+                if rtc_alarm_verified:
+                    logger.info("RTC alarm verified - proceeding with system shutdown")
+                    try:
+                        # Use subprocess to run shutdown command
+                        # Note: Requires passwordless sudo for shutdown command
+                        subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
+                    except subprocess.CalledProcessError as e:
+                        logger.error(f"Failed to shutdown system: {e}")
+                        logger.error(
+                            "Make sure the user has passwordless sudo for shutdown. "
+                            "Add to /etc/sudoers.d/waveshare-frame:\n"
+                            "waveshare ALL=(ALL) NOPASSWD: /sbin/shutdown"
+                        )
+                    except FileNotFoundError:
+                        logger.error("shutdown command not found")
+                else:
+                    logger.error(
+                        "RTC alarm NOT verified - aborting shutdown to prevent device from "
+                        "never waking up. Device will remain on for debugging. "
+                        "Check Pisugar connection and RTC configuration."
+                    )
 
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")

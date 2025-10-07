@@ -147,6 +147,20 @@ class PisugarClient:
         logger.info("Disabling RTC alarm")
         self._send_command("rtc_alarm_disable")
 
+    def clear_rtc_alarm_flag(self) -> None:
+        """Clear RTC alarm flag after wake-up.
+
+        This must be called after the device wakes from an RTC alarm to allow
+        subsequent alarms to trigger. If the alarm flag is not cleared, the next
+        alarm will not wake the device.
+
+        Raises:
+            ConnectionError: If connection to Pisugar fails
+        """
+        logger.info("Clearing RTC alarm flag")
+        response = self._send_command("rtc_clean_flag")
+        logger.debug(f"Clear alarm flag response: {response}")
+
     def get_battery_level(self) -> float | None:
         """Get current battery level percentage.
 

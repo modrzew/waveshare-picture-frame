@@ -51,6 +51,7 @@ class PisugarConfig:
     message_wait_timeout: int = 30  # Seconds to wait for MQTT messages
     shutdown_after_display: bool = True
     battery_topic: str = "home/displays/waveshare/battery"  # MQTT topic for battery status
+    status_topic: str = "home/displays/waveshare/status"  # MQTT topic for system status
 
 
 @dataclass
@@ -122,6 +123,7 @@ class Config:
             message_wait_timeout=pisugar_data.get("message_wait_timeout", 30),
             shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
             battery_topic=pisugar_data.get("battery_topic", "home/displays/waveshare/battery"),
+            status_topic=pisugar_data.get("status_topic", "home/displays/waveshare/status"),
         )
 
         preview_config = PreviewConfig(
