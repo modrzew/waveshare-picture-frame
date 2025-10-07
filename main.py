@@ -397,8 +397,9 @@ class WavesharePictureFrame:
                     logger.error(f"Failed to set RTC alarm: {e}", exc_info=True)
                     status = "rtc_failure"
 
-                # Publish status to Home Assistant
+                # Publish status to Home Assistant (reconnect first since run_once disconnected)
                 try:
+                    self.mqtt_client.connect()
                     status_payload = {
                         "status": status,
                         "timestamp": datetime.now().isoformat(),
@@ -410,6 +411,7 @@ class WavesharePictureFrame:
                         retain=True,
                     )
                     logger.info(f"Published system status: {status}")
+                    self.mqtt_client.disconnect()
                 except Exception as e:
                     logger.error(f"Failed to publish status: {e}")
 

@@ -132,11 +132,8 @@ class PisugarClient:
         )
         response = self._send_command(command)
 
-        # Check if command succeeded (response should be "rtc_alarm_set: done")
-        if "done" in response.lower():
-            logger.debug("RTC alarm set successfully")
-        else:
-            logger.warning(f"Unexpected response setting RTC alarm: {response}")
+        # Log response at debug level - actual verification happens via is_rtc_alarm_enabled()
+        logger.debug(f"RTC alarm set response: {response}")
 
     def disable_rtc_alarm(self) -> None:
         """Disable RTC alarm.
@@ -158,7 +155,7 @@ class PisugarClient:
             ConnectionError: If connection to Pisugar fails
         """
         logger.info("Clearing RTC alarm flag")
-        response = self._send_command("rtc_clean_flag")
+        response = self._send_command("rtc_clear_flag")
         logger.debug(f"Clear alarm flag response: {response}")
 
     def get_battery_level(self) -> float | None:
