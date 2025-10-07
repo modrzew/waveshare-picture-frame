@@ -219,6 +219,20 @@ class WavesharePictureFrame:
         try:
             logger.info("Starting Waveshare Picture Frame (battery mode)")
 
+            # Sync system time from Pisugar RTC before anything else
+            try:
+                if self.config.pisugar.use_tcp:
+                    pisugar = PisugarClient(
+                        host=self.config.pisugar.tcp_host,
+                        port=self.config.pisugar.tcp_port,
+                    )
+                else:
+                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+
+                pisugar.sync_time_from_rtc()
+            except Exception as e:
+                logger.warning(f"Failed to sync time from RTC: {e}")
+
             # Setup components
             self.setup_display()
             self.setup_mqtt()

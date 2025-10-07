@@ -158,6 +158,22 @@ class PisugarClient:
         response = self._send_command("rtc_clear_flag")
         logger.debug(f"Clear alarm flag response: {response}")
 
+    def sync_time_from_rtc(self) -> None:
+        """Sync system time from Pisugar RTC.
+
+        This syncs the Raspberry Pi system clock from the battery-backed RTC.
+        Should be called at boot/wake to ensure system time is correct before
+        NTP sync completes.
+
+        Raises:
+            ConnectionError: If connection to Pisugar fails
+        """
+        logger.info("Syncing system time from Pisugar RTC")
+        response = self._send_command("rtc_rtc2pi")
+        logger.debug(f"Time sync response: {response}")
+        # Log current time after sync
+        logger.info(f"System time synced from RTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
     def get_battery_level(self) -> float | None:
         """Get current battery level percentage.
 
