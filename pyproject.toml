@@ -12,6 +12,7 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "pillow>=10.4.0",
     "requests>=2.32.3",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]

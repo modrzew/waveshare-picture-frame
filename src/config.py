@@ -65,6 +65,13 @@ class PreviewConfig:
 
 
 @dataclass
+class ImageProcessingConfig:
+    """Image processing configuration for border detection and cropping."""
+
+    auto_crop_borders: bool = True  # Enable automatic uniform border detection and cropping
+
+
+@dataclass
 class Config:
     """Application configuration."""
 
@@ -73,6 +80,7 @@ class Config:
     logging: LoggingConfig
     pisugar: PisugarConfig
     preview: PreviewConfig
+    image_processing: ImageProcessingConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
@@ -89,6 +97,7 @@ class Config:
         logging_data = data.get("logging", {})
         pisugar_data = data.get("pisugar", {})
         preview_data = data.get("preview", {})
+        image_processing_data = data.get("image_processing", {})
 
         mqtt_config = MQTTConfig(
             host=mqtt_data.get("host", "localhost"),
@@ -133,12 +142,17 @@ class Config:
             quality=preview_data.get("quality", 80),
         )
 
+        image_processing_config = ImageProcessingConfig(
+            auto_crop_borders=image_processing_data.get("auto_crop_borders", True),
+        )
+
         return cls(
             mqtt=mqtt_config,
             display=display_config,
             logging=logging_config,
             pisugar=pisugar_config,
             preview=preview_config,
+            image_processing=image_processing_config,
         )
 
     @classmethod

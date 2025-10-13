@@ -125,6 +125,7 @@ class WavesharePictureFrame:
             display=self.display,
             mqtt_client=self.mqtt_client,
             preview_config=self.config.preview,
+            image_processing_config=self.config.image_processing,
         )
         self.handlers.append(image_handler)
 

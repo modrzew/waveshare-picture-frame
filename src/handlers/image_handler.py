@@ -9,11 +9,12 @@ import requests
 from PIL import Image
 
 from src.display.base import DisplayBase
+from src.utils.image_processing import auto_crop_borders
 
 from .base import HandlerBase
 
 if TYPE_CHECKING:
-    from src.config import PreviewConfig
+    from src.config import ImageProcessingConfig, PreviewConfig
     from src.mqtt.client import MQTTClient
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class ImageHandler(HandlerBase):
         timeout: int = 30,
         mqtt_client: "MQTTClient | None" = None,
         preview_config: "PreviewConfig | None" = None,
+        image_processing_config: "ImageProcessingConfig | None" = None,
     ):
         """Initialize the image handler.
 
@@ -38,12 +40,14 @@ class ImageHandler(HandlerBase):
             timeout: Request timeout in seconds
             mqtt_client: Optional MQTT client for publishing previews
             preview_config: Optional preview configuration
+            image_processing_config: Optional image processing configuration
         """
         super().__init__(display)
         assert self.display is not None, "ImageHandler requires a display instance"
         self.timeout = timeout
         self.mqtt_client = mqtt_client
         self.preview_config = preview_config
+        self.image_processing_config = image_processing_config
 
     @property
     def supported_actions(self) -> list[str]:
@@ -92,6 +96,10 @@ class ImageHandler(HandlerBase):
             image_data = io.BytesIO(response.content)
             image = Image.open(image_data)
             logger.info(f"Image loaded successfully: {image.size} {image.mode}")
+
+            # Auto-crop borders if configured
+            if self.image_processing_config and self.image_processing_config.auto_crop_borders:
+                image = auto_crop_borders(image)
 
             # Resize if requested
             if resize:
