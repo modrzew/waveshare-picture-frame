@@ -16,6 +16,7 @@ from src.handlers.system_handler import SystemHandler
 from src.mqtt.client import MQTTClient
 from src.pisugar.client import PisugarClient
 from src.state import AppState
+from src.utils.time_sync import sync_system_time
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +221,7 @@ class WavesharePictureFrame:
         try:
             logger.info("Starting Waveshare Picture Frame (battery mode)")
 
-            # Sync system time from Pisugar RTC before anything else
+            # Sync system time using NTP (preferred) or Pisugar RTC (fallback)
             try:
                 if self.config.pisugar.use_tcp:
                     pisugar = PisugarClient(
@@ -230,9 +231,26 @@ class WavesharePictureFrame:
                 else:
                     pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
 
-                pisugar.sync_time_from_rtc()
+                # Try NTP first, fall back to RTC with sanity check
+                sync_result = sync_system_time(pisugar, self.config.time_sync)
+
+                if sync_result["success"]:
+                    method = sync_result["method"].upper()
+                    logger.info(f"Time synchronized successfully via {method}")
+                else:
+                    logger.warning("Time synchronization failed - system time may be incorrect!")
+
+                # Warn if RTC time was invalid (battery likely died)
+                if not sync_result["rtc_valid"] and sync_result["rtc_time"]:
+                    rtc_time = sync_result["rtc_time"].strftime("%Y-%m-%d %H:%M:%S")
+                    logger.warning(
+                        f"Pisugar RTC time ({rtc_time}) appears invalid - battery may have died. "
+                        "Consider recharging and resetting RTC."
+                    )
+
             except Exception as e:
-                logger.warning(f"Failed to sync time from RTC: {e}")
+                logger.error(f"Failed to sync time: {e}")
+                logger.warning("Continuing with potentially incorrect system time")
 
             # Setup components
             self.setup_display()
@@ -300,6 +318,23 @@ class WavesharePictureFrame:
                     retain=True,
                 )
                 logger.debug("Published status sensor discovery message")
+
+                # Last Updated timestamp sensor discovery (for detecting time drift)
+                last_updated_discovery = {
+                    "name": f"{device_name} Last Updated",
+                    "state_topic": self.config.pisugar.battery_topic,
+                    "value_template": "{{ value_json.timestamp }}",
+                    "device_class": "timestamp",
+                    "unique_id": f"{device_id}_last_updated",
+                    "device": device_info,
+                }
+                self.mqtt_client.publish(
+                    topic=f"homeassistant/sensor/{device_id}_last_updated/config",
+                    payload=last_updated_discovery,
+                    qos=1,
+                    retain=True,
+                )
+                logger.debug("Published last updated sensor discovery message")
 
             except Exception as e:
                 logger.warning(f"Failed to publish HA discovery messages: {e}")

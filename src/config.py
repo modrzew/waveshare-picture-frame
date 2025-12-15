@@ -72,6 +72,18 @@ class ImageProcessingConfig:
 
 
 @dataclass
+class TimeSyncConfig:
+    """Time synchronization configuration."""
+
+    try_ntp_first: bool = True  # Try NTP before Pisugar RTC
+    ntp_timeout: int = 10  # Seconds to wait for NTP sync
+    min_valid_year: int = 2025  # Reject RTC times before this year
+    ntp_servers: list[str] = field(
+        default_factory=lambda: ["pool.ntp.org", "time.google.com"]
+    )  # NTP servers to try
+
+
+@dataclass
 class Config:
     """Application configuration."""
 
@@ -81,6 +93,7 @@ class Config:
     pisugar: PisugarConfig
     preview: PreviewConfig
     image_processing: ImageProcessingConfig
+    time_sync: TimeSyncConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
@@ -98,6 +111,7 @@ class Config:
         pisugar_data = data.get("pisugar", {})
         preview_data = data.get("preview", {})
         image_processing_data = data.get("image_processing", {})
+        time_sync_data = data.get("time_sync", {})
 
         mqtt_config = MQTTConfig(
             host=mqtt_data.get("host", "localhost"),
@@ -146,6 +160,13 @@ class Config:
             auto_crop_borders=image_processing_data.get("auto_crop_borders", True),
         )
 
+        time_sync_config = TimeSyncConfig(
+            try_ntp_first=time_sync_data.get("try_ntp_first", True),
+            ntp_timeout=time_sync_data.get("ntp_timeout", 10),
+            min_valid_year=time_sync_data.get("min_valid_year", 2025),
+            ntp_servers=time_sync_data.get("ntp_servers", ["pool.ntp.org", "time.google.com"]),
+        )
+
         return cls(
             mqtt=mqtt_config,
             display=display_config,
@@ -153,6 +174,7 @@ class Config:
             pisugar=pisugar_config,
             preview=preview_config,
             image_processing=image_processing_config,
+            time_sync=time_sync_config,
         )
 
     @classmethod

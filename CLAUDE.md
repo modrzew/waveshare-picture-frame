@@ -211,6 +211,12 @@ enabled = true                      # Enable preview thumbnail publishing to Hom
 topic = "home/displays/waveshare/preview"  # MQTT topic for preview image
 width = 320                         # Thumbnail width in pixels (height maintains aspect ratio)
 quality = 80                        # JPEG quality (1-100)
+
+[time_sync]
+try_ntp_first = true                # Try NTP before Pisugar RTC (recommended)
+ntp_timeout = 10                    # Seconds to wait for NTP sync
+min_valid_year = 2025               # Reject RTC times before this year (battery died protection)
+ntp_servers = ["pool.ntp.org", "time.google.com"]  # NTP servers to try
 ```
 
 ### Home Assistant Integration
@@ -223,9 +229,18 @@ quality = 80                        # JPEG quality (1-100)
 
 **MQTT Discovery:**
 - Battery sensor: `homeassistant/sensor/{client_id}_battery/config` (battery mode only)
+- Status sensor: `homeassistant/sensor/{client_id}_status/config` (battery mode only, shows "ok", "rtc_failure", or "image_fetch_failed")
+- Last Updated sensor: `homeassistant/sensor/{client_id}_last_updated/config` (battery mode only, timestamp for detecting time drift)
 - Preview image: `homeassistant/image/{client_id}_preview/config` (both modes)
 - Device info is shared between entities for proper grouping
 - Discovery messages are retained and published automatically on startup
+
+**Time Synchronization (Battery Mode):**
+- On boot, attempts NTP sync first (if `time_sync.try_ntp_first = true`)
+- Falls back to Pisugar RTC if NTP fails
+- Validates RTC time (rejects dates before `time_sync.min_valid_year`) to detect dead battery
+- "Last Updated" sensor in Home Assistant shows Pi's timestamp - compare with HA's receive time to detect clock drift
+- If RTC battery died and time is invalid, logs warning and skips RTC sync to wait for NTP
 
 ### Adding New Message Handlers
 
