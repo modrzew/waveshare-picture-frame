@@ -38,7 +38,7 @@ class JsonLinesHandler(logging.Handler):
     def _format_entry(self, record: logging.LogRecord) -> str:
         """Format a log record as a JSON lines entry."""
         entry = {
-            "log": {"message": self.format(record)},
+            "_msg": self.format(record),
             "_time": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "app": "waveshare-frame",
             "level": record.levelname.lower(),
