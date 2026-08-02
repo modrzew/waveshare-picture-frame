@@ -31,11 +31,23 @@ class DisplayConfig:
 
 
 @dataclass
+class JsonLinesConfig:
+    """JSON lines HTTP endpoint configuration."""
+
+    enabled: bool = False
+    endpoint: str = "http://localhost:9428/insert/jsonline"
+    batch_size: int = 10
+    flush_interval: float = 1.0  # seconds
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class LoggingConfig:
     """Logging configuration."""
 
     level: str = "INFO"
     format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    json_lines: JsonLinesConfig = field(default_factory=JsonLinesConfig)
 
 
 @dataclass
@@ -129,10 +141,18 @@ class Config:
             height=display_data.get("height", 480),
         )
 
+        logging_data_jl = logging_data.get("json_lines", {})
         logging_config = LoggingConfig(
             level=logging_data.get("level", "INFO"),
             format=logging_data.get(
                 "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ),
+            json_lines=JsonLinesConfig(
+                enabled=logging_data_jl.get("enabled", False),
+                endpoint=logging_data_jl.get("endpoint", "http://localhost:9428/insert/jsonline"),
+                batch_size=logging_data_jl.get("batch_size", 10),
+                flush_interval=logging_data_jl.get("flush_interval", 1.0),
+                headers=logging_data_jl.get("headers", {}),
             ),
         )
 

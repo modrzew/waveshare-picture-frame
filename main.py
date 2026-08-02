@@ -13,6 +13,7 @@ from src.config import Config
 from src.display.waveshare import WaveshareDisplay
 from src.handlers.image_handler import ImageHandler
 from src.handlers.system_handler import SystemHandler
+from src.logging.json_lines import JsonLinesHandler
 from src.mqtt.client import MQTTClient
 from src.pisugar.client import PisugarClient
 from src.state import AppState
@@ -38,6 +39,7 @@ class WavesharePictureFrame:
         self.display = None
         self.mqtt_client = None
         self.handlers = []
+        self._json_lines_handler: JsonLinesHandler | None = None
         self._shutting_down = False
         self.app_state = AppState()
 
@@ -66,6 +68,19 @@ class WavesharePictureFrame:
             format=self.config.logging.format,
         )
         logger.info("Logging configured")
+
+        if self.config.logging.json_lines.enabled:
+            self._json_lines_handler = JsonLinesHandler(
+                endpoint=self.config.logging.json_lines.endpoint,
+                batch_size=self.config.logging.json_lines.batch_size,
+                flush_interval=self.config.logging.json_lines.flush_interval,
+                headers=self.config.logging.json_lines.headers,
+            )
+            logging.getLogger().addHandler(self._json_lines_handler)
+            logger.info(
+                "JSON lines handler enabled → %s",
+                self.config.logging.json_lines.endpoint,
+            )
 
     def setup_display(self):
         """Initialize the display."""
@@ -505,6 +520,13 @@ class WavesharePictureFrame:
                 self.mqtt_client.disconnect()
             except Exception as e:
                 logger.error(f"Error disconnecting MQTT: {e}")
+
+        # Close JSON lines handler (flushes remaining entries)
+        if self._json_lines_handler:
+            try:
+                self._json_lines_handler.close()
+            except Exception as e:
+                logger.error(f"Error closing JSON lines handler: {e}")
 
         # Sleep display
         if self.display and self.display.is_initialized:
