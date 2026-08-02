@@ -20,6 +20,13 @@ height = 480        # Display height in pixels
 level = "INFO"      # Log level: DEBUG, INFO, WARNING, ERROR
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+[logging.json_lines]
+enabled = false                      # Ship logs to a JSON lines HTTP endpoint
+endpoint = "http://localhost:9428/insert/jsonline"  # JSON lines ingest URL
+batch_size = 10                      # Entries per HTTP POST
+flush_interval = 1.0                 # Seconds between flush checks
+# headers = { Authorization = "Bearer <token>" }  # Optional auth headers
+
 [pisugar]
 enabled = false                     # Enable battery mode with Pisugar RTC
 wake_interval_minutes = 15          # Minutes between wake-ups
