@@ -10,10 +10,10 @@ jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.13"
 
@@ -31,3 +31,18 @@ jobs:
 
       - name: Run pyright
         run: uv run pyright
+
+  lockfile:
+    # Fails when .github/workflows/actions.lock is out of sync with the
+    # workflows or a locked pin no longer verifies upstream.
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+      - run: gh actions-lock --verify
