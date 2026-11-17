@@ -20,8 +20,7 @@ class MockDisplay(DisplayBase):
             width: Display width in pixels
             height: Display height in pixels
         """
-        super().__init__(width, height)
-        self.model = model
+        super().__init__(model, width, height)
         logger.info(f"MockDisplay initialized (model={model}, {width}x{height})")
 
     def init(self) -> None:

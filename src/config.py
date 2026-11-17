@@ -60,7 +60,7 @@ class PisugarConfig:
     tcp_host: str = "127.0.0.1"
     tcp_port: int = 8423
     socket_path: str = "/tmp/pisugar-server.sock"  # Only used if use_tcp = false
-    message_wait_timeout: int = 30  # Seconds to wait for MQTT messages
+    message_wait_timeout: int = 5  # Seconds to wait for MQTT messages
     shutdown_after_display: bool = True
     battery_topic: str = "home/displays/waveshare/battery"  # MQTT topic for battery status
     status_topic: str = "home/displays/waveshare/status"  # MQTT topic for system status
@@ -74,6 +74,13 @@ class PreviewConfig:
     topic: str = "home/displays/waveshare/preview"  # MQTT topic for preview image
     width: int = 320  # Thumbnail width in pixels
     quality: int = 80  # JPEG quality (1-100)
+
+
+@dataclass
+class LocalImagesConfig:
+    """Local image folder shown when no MQTT image arrives (battery mode)."""
+
+    path: str | None = None  # Folder searched recursively; None disables the fallback
 
 
 @dataclass
@@ -105,6 +112,7 @@ class Config:
     pisugar: PisugarConfig
     preview: PreviewConfig
     image_processing: ImageProcessingConfig
+    local_images: LocalImagesConfig
     time_sync: TimeSyncConfig
 
     @classmethod
@@ -123,6 +131,7 @@ class Config:
         pisugar_data = data.get("pisugar", {})
         preview_data = data.get("preview", {})
         image_processing_data = data.get("image_processing", {})
+        local_images_data = data.get("local_images", {})
         time_sync_data = data.get("time_sync", {})
 
         mqtt_config = MQTTConfig(
@@ -163,7 +172,7 @@ class Config:
             tcp_host=pisugar_data.get("tcp_host", "127.0.0.1"),
             tcp_port=pisugar_data.get("tcp_port", 8423),
             socket_path=pisugar_data.get("socket_path", "/tmp/pisugar-server.sock"),
-            message_wait_timeout=pisugar_data.get("message_wait_timeout", 30),
+            message_wait_timeout=pisugar_data.get("message_wait_timeout", 5),
             shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
             battery_topic=pisugar_data.get("battery_topic", "home/displays/waveshare/battery"),
             status_topic=pisugar_data.get("status_topic", "home/displays/waveshare/status"),
@@ -180,6 +189,10 @@ class Config:
             auto_crop_borders=image_processing_data.get("auto_crop_borders", True),
         )
 
+        local_images_config = LocalImagesConfig(
+            path=local_images_data.get("path"),
+        )
+
         time_sync_config = TimeSyncConfig(
             try_ntp_first=time_sync_data.get("try_ntp_first", True),
             ntp_timeout=time_sync_data.get("ntp_timeout", 10),
@@ -194,6 +207,7 @@ class Config:
             pisugar=pisugar_config,
             preview=preview_config,
             image_processing=image_processing_config,
+            local_images=local_images_config,
             time_sync=time_sync_config,
         )
 

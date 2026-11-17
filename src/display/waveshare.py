@@ -6,6 +6,7 @@ from typing import Protocol
 from PIL import Image
 
 from .base import DisplayBase
+from .palette import pack_4bit, to_codes
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,7 @@ class WaveshareDisplay(DisplayBase):
             width: Display width in pixels
             height: Display height in pixels
         """
-        super().__init__(width, height)
-        self.model = model
+        super().__init__(model, width, height)
         self.epd: EPDProtocol | None = None
 
     def _get_epd_module(self) -> EPDProtocol:
@@ -101,9 +101,15 @@ class WaveshareDisplay(DisplayBase):
                 logger.debug(f"Resizing image from {image.size} to ({self.width}, {self.height})")
                 image = self.resize_image(image)
 
-            # Display the image
+            if self.palette is not None:
+                # Build the buffer ourselves: same mapping as the vendor getbuffer(), but
+                # packed with numpy instead of a per-pixel Python loop.
+                buffer = pack_4bit(to_codes(image, self.palette))
+            else:
+                buffer = self.epd.getbuffer(image)
+
             logger.info("Displaying image on e-ink display")
-            self.epd.display(self.epd.getbuffer(image))
+            self.epd.display(buffer)
             logger.info("Image displayed successfully")
 
         except Exception as e:
