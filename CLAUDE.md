@@ -74,6 +74,7 @@ uv run python prepare_image.py SRC DST --crop X,Y,W,H --preview P.png  # Desktop
 - Requires passwordless sudo for shutdown: `pi ALL=(ALL) NOPASSWD: /sbin/shutdown`
 - Battery life: weeks/months instead of hours with always-on mode
 - **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.
+- **Manual wake-up stays on**: Pressing the PiSugar button while the frame sleeps also enters continuous mode (`stay_on_after_manual_wake`, default true). PiSugar doesn't report the wake source (PiSugar 3's `get rtc_alarm_flag` is always false), so `src/pisugar/wake.py` infers it: right before shutdown it records the scheduled wake time in `~/.local/state/waveshare-frame/scheduled_wake.json`; on boot it compares that with the boot time (RTC time minus `/proc/uptime`). Within -1/+3 minutes counts as the alarm, otherwise manual. The record is consumed on read, so a reboot or service restart (no record) resumes the normal cycle.
 - See `waveshare-frame.service` for deployment instructions
 
 **Local image fallback (all modes)**: `show_mqtt_or_local_image()` in `main.py` waits `pisugar.message_wait_timeout` seconds for MQTT messages, then shows a random image from `local_images.path` if none displayed an image (via `ImageHandler.show_random_image()`, which also serves `display_image` with `random: true`). Normal mode does this once at startup (also when the broker is unreachable, before exiting) and then waits for MQTT forever; battery mode does it on every wake-up.
@@ -145,6 +146,7 @@ journalctl -u waveshare-frame -f
 - **src/display/waveshare.py**: Real hardware implementation using waveshare-epd library
 - **src/display/mock.py**: Mock display for development without hardware
 - **src/pisugar/client.py**: Pisugar power manager client for RTC alarm and battery status
+- **src/pisugar/wake.py**: Tells a scheduled RTC wake-up apart from a manual power-on (button press)
 
 ### MQTT Message Protocol
 
@@ -221,6 +223,7 @@ tcp_port = 8423                     # Pisugar TCP port
 socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false)
 message_wait_timeout = 5            # Seconds to wait for MQTT messages before the local image (all modes)
 shutdown_after_display = true       # Shutdown after processing
+stay_on_after_manual_wake = true    # Button press while sleeping -> continuous mode instead of shutdown
 battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
 
 [local_images]

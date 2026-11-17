@@ -62,6 +62,7 @@ class PisugarConfig:
     socket_path: str = "/tmp/pisugar-server.sock"  # Only used if use_tcp = false
     message_wait_timeout: int = 5  # Seconds to wait for MQTT messages (all modes)
     shutdown_after_display: bool = True
+    stay_on_after_manual_wake: bool = True  # Button press while sleeping -> continuous mode
     battery_topic: str = "home/displays/waveshare/battery"  # MQTT topic for battery status
     status_topic: str = "home/displays/waveshare/status"  # MQTT topic for system status
 
@@ -174,6 +175,7 @@ class Config:
             socket_path=pisugar_data.get("socket_path", "/tmp/pisugar-server.sock"),
             message_wait_timeout=pisugar_data.get("message_wait_timeout", 5),
             shutdown_after_display=pisugar_data.get("shutdown_after_display", True),
+            stay_on_after_manual_wake=pisugar_data.get("stay_on_after_manual_wake", True),
             battery_topic=pisugar_data.get("battery_topic", "home/displays/waveshare/battery"),
             status_topic=pisugar_data.get("status_topic", "home/displays/waveshare/status"),
         )
