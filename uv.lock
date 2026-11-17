@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = ">=3.13"
+resolution-markers = [
+    "platform_machine == 'armv6l' or platform_machine == 'armv7l'",
+    "platform_machine != 'armv6l' and platform_machine != 'armv7l'",
+]
 
 [[package]]
 name = "certifi"
@@ -70,6 +74,9 @@ wheels = [
 name = "numpy"
 version = "2.3.3"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "platform_machine != 'armv6l' and platform_machine != 'armv7l'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/d0/19/95b3d357407220ed24c139018d2518fab0a61a948e68286a25f1a4d049ff/numpy-2.3.3.tar.gz", hash = "sha256:ddc7c39727ba62b80dfdbedf400d1c10ddfa8eefbd7ec8dcb118be8b56d31029", size = 20576648, upload-time = "2025-09-09T16:54:12.543Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/b9/984c2b1ee61a8b803bf63582b4ac4242cf76e2dbd663efeafcb620cc0ccb/numpy-2.3.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:f5415fb78995644253370985342cd03572ef8620b934da27d77377a2285955bf", size = 20949588, upload-time = "2025-09-09T15:56:59.087Z" },
@@ -119,6 +126,18 @@ wheels = [
 ]
 
 [[package]]
+name = "numpy"
+version = "2.5.4"
+source = { registry = "https://www.piwheels.org/simple" }
+resolution-markers = [
+    "platform_machine == 'armv6l' or platform_machine == 'armv7l'",
+]
+wheels = [
+    { url = "https://www.piwheels.org/simple/numpy/numpy-2.5.4-cp313-cp313-linux_armv6l.whl", hash = "sha256:9e5fea8608e5e4ef6b832b7180e2b5f71a2b0d0aa34bdc778498314d15c094ce" },
+    { url = "https://www.piwheels.org/simple/numpy/numpy-2.5.4-cp313-cp313-linux_armv7l.whl", hash = "sha256:9e5fea8608e5e4ef6b832b7180e2b5f71a2b0d0aa34bdc778498314d15c094ce" },
+]
+
+[[package]]
 name = "paho-mqtt"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -131,6 +150,9 @@ wheels = [
 name = "pillow"
 version = "11.3.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "platform_machine != 'armv6l' and platform_machine != 'armv7l'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/f3/0d/d0d6dea55cd152ce3d6767bb38a8fc10e33796ba4ba210cbab9354b6d238/pillow-11.3.0.tar.gz", hash = "sha256:3828ee7586cd0b2091b6209e5ad53e20d0649bbe87164a459d0676e035e8f523", size = 47113069, upload-time = "2025-07-01T09:16:30.666Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/93/0952f2ed8db3a5a4c7a11f91965d6184ebc8cd7cbb7941a260d5f018cd2d/pillow-11.3.0-cp313-cp313-ios_13_0_arm64_iphoneos.whl", hash = "sha256:1c627742b539bba4309df89171356fcb3cc5a9178355b2727d1b74a6cf155fbd", size = 2128328, upload-time = "2025-07-01T09:14:35.276Z" },
@@ -180,6 +202,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/77/bc6f92a3e8e6e46c0ca78abfffec0037845800ea38c73483760362804c41/pillow-11.3.0-cp314-cp314t-win32.whl", hash = "sha256:118ca10c0d60b06d006be10a501fd6bbdfef559251ed31b794668ed569c87e12", size = 6377370, upload-time = "2025-07-01T09:15:46.673Z" },
     { url = "https://files.pythonhosted.org/packages/4a/82/3a721f7d69dca802befb8af08b7c79ebcab461007ce1c18bd91a5d5896f9/pillow-11.3.0-cp314-cp314t-win_amd64.whl", hash = "sha256:8924748b688aa210d79883357d102cd64690e56b923a186f35a82cbc10f997db", size = 7121500, upload-time = "2025-07-01T09:15:48.512Z" },
     { url = "https://files.pythonhosted.org/packages/89/c7/5572fa4a3f45740eaab6ae86fcdf7195b55beac1371ac8c619d880cfe948/pillow-11.3.0-cp314-cp314t-win_arm64.whl", hash = "sha256:79ea0d14d3ebad43ec77ad5272e6ff9bba5b679ef73375ea760261207fa8e0aa", size = 2512835, upload-time = "2025-07-01T09:15:50.399Z" },
+]
+
+[[package]]
+name = "pillow"
+version = "13.0.0"
+source = { registry = "https://www.piwheels.org/simple" }
+resolution-markers = [
+    "platform_machine == 'armv6l' or platform_machine == 'armv7l'",
+]
+wheels = [
+    { url = "https://www.piwheels.org/simple/pillow/pillow-13.0.0-cp313-cp313-linux_armv6l.whl", hash = "sha256:df29f75f2d1ff2caa47e29f4f3ba21490b92c6b212589e272aa3f2ff1619c1bb" },
+    { url = "https://www.piwheels.org/simple/pillow/pillow-13.0.0-cp313-cp313-linux_armv7l.whl", hash = "sha256:df29f75f2d1ff2caa47e29f4f3ba21490b92c6b212589e272aa3f2ff1619c1bb" },
 ]
 
 [[package]]
@@ -271,9 +305,11 @@ name = "waveshare-picture-frame"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://www.piwheels.org/simple" }, marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'" },
     { name = "paho-mqtt" },
-    { name = "pillow" },
+    { name = "pillow", version = "11.3.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'" },
+    { name = "pillow", version = "13.0.0", source = { registry = "https://www.piwheels.org/simple" }, marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'" },
     { name = "requests" },
 ]
 
@@ -295,9 +331,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jetson-gpio", marker = "extra == 'jetson'" },
-    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "numpy", marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'", specifier = ">=1.26.0" },
+    { name = "numpy", marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'", specifier = ">=1.26.0", index = "https://www.piwheels.org/simple" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },
-    { name = "pillow", specifier = ">=10.4.0" },
+    { name = "pillow", marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'", specifier = ">=10.4.0" },
+    { name = "pillow", marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'", specifier = ">=10.4.0", index = "https://www.piwheels.org/simple" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "rpi-gpio", marker = "extra == 'rpi'" },
     { name = "spidev", marker = "extra == 'rpi'" },

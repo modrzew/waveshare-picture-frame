@@ -45,3 +45,14 @@ indent-style = "space"
 
 [tool.pyright]
 exclude = ["src/vendor/waveshare_epd", ".venv"]
+
+# 32-bit Raspberry Pi (e.g. Pi Zero W): PyPI has no armv6l/armv7l wheels for these, so take
+# prebuilt ones from piwheels instead of compiling from source. Other platforms use PyPI.
+[[tool.uv.index]]
+name = "piwheels"
+url = "https://www.piwheels.org/simple"
+explicit = true
+
+[tool.uv.sources]
+numpy = { index = "piwheels", marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'" }
+pillow = { index = "piwheels", marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'" }
