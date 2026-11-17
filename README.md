@@ -104,6 +104,16 @@ Images that are already **panel-ready** (exactly the panel size, using only the 
 driver colours) are displayed without any processing. Everything else gets a barebones
 conversion on the Pi: border auto-crop, centre crop/resize and Floyd-Steinberg dithering.
 
+## Manual Wake-Up (Battery Mode)
+
+In battery mode, pressing the PiSugar button while the frame sleeps wakes it as usual, but it
+then stays on (continuous mode) instead of shutting down again, so you can SSH in. Reboot it
+or restart the service to return to the normal sleep cycle. Disable with
+`pisugar.stay_on_after_manual_wake = false`.
+
+PiSugar doesn't tell the Pi why it powered on, so the frame infers it: a boot within a few
+minutes of the scheduled RTC alarm counts as the alarm, anything else as a button press.
+
 ## Preparing Images (`prepare_image.py`)
 
 Run on your computer (not the Pi) to turn any image into a panel-ready PNG:

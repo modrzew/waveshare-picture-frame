@@ -17,6 +17,12 @@ from src.handlers.system_handler import SystemHandler
 from src.logging.json_lines import JsonLinesHandler
 from src.mqtt.client import MQTTClient
 from src.pisugar.client import PisugarClient
+from src.pisugar.wake import (
+    WakeReason,
+    clear_scheduled_wake,
+    detect_wake_reason,
+    record_scheduled_wake,
+)
 from src.state import AppState
 from src.utils.time_sync import sync_system_time
 
@@ -359,16 +365,27 @@ class WavesharePictureFrame:
         try:
             logger.info("Starting Waveshare Picture Frame (battery mode)")
 
+            if self.config.pisugar.use_tcp:
+                pisugar = PisugarClient(
+                    host=self.config.pisugar.tcp_host,
+                    port=self.config.pisugar.tcp_port,
+                )
+            else:
+                pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+
+            # A button press while sleeping (rather than the RTC alarm) keeps the frame on,
+            # e.g. for SSH access. Always detect, so the wake-up record gets consumed.
+            try:
+                wake_reason = detect_wake_reason(pisugar)
+            except Exception as e:
+                logger.warning(f"Failed to detect wake reason: {e}")
+                wake_reason = WakeReason.UNKNOWN
+            if wake_reason is WakeReason.MANUAL and self.config.pisugar.stay_on_after_manual_wake:
+                logger.info("Woken manually - staying on in continuous mode")
+                self.app_state.enter_continuous_mode()
+
             # Sync system time using NTP (preferred) or Pisugar RTC (fallback)
             try:
-                if self.config.pisugar.use_tcp:
-                    pisugar = PisugarClient(
-                        host=self.config.pisugar.tcp_host,
-                        port=self.config.pisugar.tcp_port,
-                    )
-                else:
-                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
-
                 # Try NTP first, fall back to RTC with sanity check
                 sync_result = sync_system_time(pisugar, self.config.time_sync)
 
@@ -412,14 +429,6 @@ class WavesharePictureFrame:
 
             # Clear RTC alarm flag from previous wake-up (critical for subsequent alarms to work)
             try:
-                if self.config.pisugar.use_tcp:
-                    pisugar = PisugarClient(
-                        host=self.config.pisugar.tcp_host,
-                        port=self.config.pisugar.tcp_port,
-                    )
-                else:
-                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
-
                 pisugar.clear_rtc_alarm_flag()
                 logger.info("RTC alarm flag cleared - subsequent alarms will work")
             except Exception as e:
@@ -428,15 +437,6 @@ class WavesharePictureFrame:
             # Publish battery status to MQTT
             if mqtt_connected:
                 try:
-                    # Create Pisugar client to read battery level
-                    if self.config.pisugar.use_tcp:
-                        pisugar = PisugarClient(
-                            host=self.config.pisugar.tcp_host,
-                            port=self.config.pisugar.tcp_port,
-                        )
-                    else:
-                        pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
-
                     battery_level = pisugar.get_battery_level()
                     if battery_level is not None:
                         # Publish battery status
@@ -462,37 +462,27 @@ class WavesharePictureFrame:
             if self.app_state.image_failed:
                 status = "image_fetch_failed"
 
-            # Check if continuous mode was enabled via MQTT command
+            # Check if continuous mode was enabled via MQTT command or a manual wake-up
             if self.app_state.is_continuous_mode():
                 logger.info(
                     "Continuous mode enabled - switching to always-on mode. "
                     "Device will not shutdown automatically."
                 )
-                # Still connected: keep processing messages until stopped
+                # Keep processing messages (if MQTT is connected) until stopped
                 self.mqtt_client.run_forever()
                 return  # Skip RTC alarm and shutdown
 
             # Setup Pisugar RTC alarm for next wake-up
             rtc_alarm_verified = False
             if self.config.pisugar.shutdown_after_display:
+                wake_interval = timedelta(minutes=self.config.pisugar.wake_interval_minutes)
+                next_wake = datetime.now() + wake_interval
                 try:
-                    # Create Pisugar client (TCP or Unix socket based on config)
-                    if self.config.pisugar.use_tcp:
-                        pisugar = PisugarClient(
-                            host=self.config.pisugar.tcp_host,
-                            port=self.config.pisugar.tcp_port,
-                        )
-                    else:
-                        pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
-
                     # Get battery level for logging
                     battery_level = pisugar.get_battery_level()
                     if battery_level is not None:
                         logger.info(f"Battery level: {battery_level:.1f}%")
 
-                    # Calculate next wake time
-                    wake_interval = timedelta(minutes=self.config.pisugar.wake_interval_minutes)
-                    next_wake = datetime.now() + wake_interval
                     logger.info(
                         f"Setting RTC alarm for {next_wake.strftime('%Y-%m-%d %H:%M:%S')} "
                         f"({self.config.pisugar.wake_interval_minutes} minutes from now)"
@@ -535,11 +525,17 @@ class WavesharePictureFrame:
                 # Only shutdown if RTC alarm was successfully verified
                 if rtc_alarm_verified:
                     logger.info("RTC alarm verified - proceeding with system shutdown")
+                    # Lets the next boot tell the alarm apart from a button press
+                    try:
+                        record_scheduled_wake(next_wake)
+                    except OSError as e:
+                        logger.warning(f"Failed to record scheduled wake-up: {e}")
                     try:
                         # Use subprocess to run shutdown command
                         # Note: Requires passwordless sudo for shutdown command
                         subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
                     except subprocess.CalledProcessError as e:
+                        clear_scheduled_wake()
                         logger.error(f"Failed to shutdown system: {e}")
                         logger.error(
                             "Make sure the user has passwordless sudo for shutdown. "
@@ -547,6 +543,7 @@ class WavesharePictureFrame:
                             "waveshare ALL=(ALL) NOPASSWD: /sbin/shutdown"
                         )
                     except FileNotFoundError:
+                        clear_scheduled_wake()
                         logger.error("shutdown command not found")
                 else:
                     logger.error(

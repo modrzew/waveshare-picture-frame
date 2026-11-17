@@ -174,6 +174,25 @@ class PisugarClient:
         # Log current time after sync
         logger.info(f"System time synced from RTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+    def get_rtc_time(self) -> datetime | None:
+        """Get the current RTC time.
+
+        Returns:
+            Timezone-aware RTC time, or None if it couldn't be read
+        """
+        try:
+            response = self._send_command("get rtc_time")
+            # Response format: "rtc_time: 2025-10-06T12:08:51.000+11:00", possibly after
+            # a pushed button event line (e.g. "single")
+            for line in response.split("\n"):
+                if line.lower().startswith("rtc_time:"):
+                    return datetime.fromisoformat(line.split(":", 1)[1].strip())
+            logger.warning(f"Unexpected RTC time response: {response}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get RTC time: {e}")
+            return None
+
     def get_battery_level(self) -> float | None:
         """Get current battery level percentage.
 
