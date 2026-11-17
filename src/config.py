@@ -60,7 +60,7 @@ class PisugarConfig:
     tcp_host: str = "127.0.0.1"
     tcp_port: int = 8423
     socket_path: str = "/tmp/pisugar-server.sock"  # Only used if use_tcp = false
-    message_wait_timeout: int = 5  # Seconds to wait for MQTT messages
+    message_wait_timeout: int = 5  # Seconds to wait for MQTT messages (all modes)
     shutdown_after_display: bool = True
     battery_topic: str = "home/displays/waveshare/battery"  # MQTT topic for battery status
     status_topic: str = "home/displays/waveshare/status"  # MQTT topic for system status
@@ -78,7 +78,7 @@ class PreviewConfig:
 
 @dataclass
 class LocalImagesConfig:
-    """Local image folder shown when no MQTT image arrives (battery mode)."""
+    """Local image folder shown when no MQTT image arrives within the timeout."""
 
     path: str | None = None  # Folder searched recursively; None disables the fallback
 

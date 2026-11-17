@@ -76,6 +76,8 @@ uv run python prepare_image.py SRC DST --crop X,Y,W,H --preview P.png  # Desktop
 - **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.
 - See `waveshare-frame.service` for deployment instructions
 
+**Local image fallback (all modes)**: `show_mqtt_or_local_image()` in `main.py` waits `pisugar.message_wait_timeout` seconds for MQTT messages, then shows a random image from `local_images.path` if none displayed an image. Normal mode does this once at startup (also when the broker is unreachable, before exiting) and then waits for MQTT forever; battery mode does it on every wake-up.
+
 **Signal handling:**
 - First Ctrl+C: Graceful shutdown (disconnects MQTT, clears display, sleeps hardware)
 - Second Ctrl+C: Force exit immediately
@@ -127,7 +129,7 @@ journalctl -u waveshare-frame -f
 
 ### Key Files
 
-- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode with local image fallback
+- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode; local image fallback in all modes
 - **prepare_image.py**: Desktop CLI - crops (box grown to 5:3), resizes and colour-converts an image to a panel-ready PNG; prints a JSON summary
 - **src/config.py**: TOML parsing and configuration dataclasses; includes MQTTConfig, DisplayConfig, LoggingConfig, PisugarConfig, PreviewConfig, LocalImagesConfig
 - **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports always-on (`run_forever()`) and battery (`wait_for_messages()`, connection stays open) modes; publishes JSON and binary payloads
@@ -210,12 +212,12 @@ use_tcp = true                      # Use TCP instead of Unix socket (avoids per
 tcp_host = "127.0.0.1"              # Pisugar TCP host
 tcp_port = 8423                     # Pisugar TCP port
 socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false)
-message_wait_timeout = 5            # Seconds to wait for MQTT messages
+message_wait_timeout = 5            # Seconds to wait for MQTT messages before the local image (all modes)
 shutdown_after_display = true       # Shutdown after processing
 battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
 
 [local_images]
-path = "/home/pi/frame-images"      # Random image shown when no MQTT image arrives (battery mode)
+path = "/home/pi/frame-images"      # Random image shown at startup if no MQTT image arrives (all modes)
 
 [preview]
 enabled = true                      # Enable preview thumbnail publishing to Home Assistant

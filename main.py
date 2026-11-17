@@ -224,6 +224,27 @@ class WavesharePictureFrame:
         logger.error(f"Could not load any of {MAX_LOCAL_IMAGE_ATTEMPTS} local images")
         self.app_state.mark_image_failed()
 
+    def show_mqtt_or_local_image(self, mqtt_connected: bool):
+        """Wait for MQTT messages; if none of them displayed an image, show a local one.
+
+        Used by every mode, so the frame always gets an image even without MQTT.
+
+        Args:
+            mqtt_connected: Whether the MQTT client is connected (skip the wait if not)
+        """
+        if mqtt_connected:
+            assert self.mqtt_client is not None, "MQTT client must be initialized"
+            timeout = self.config.pisugar.message_wait_timeout
+            try:
+                messages_received = self.mqtt_client.wait_for_messages(timeout=timeout)
+                logger.info(f"Received {messages_received} message(s) within {timeout}s")
+            except Exception as e:
+                logger.error(f"Error processing messages: {e}")
+
+        # No image from MQTT (none sent, or it failed): show one from the local folder
+        if not self.app_state.image_displayed:
+            self.show_local_image()
+
     def _publish_battery_discovery(self):
         """Publish Home Assistant MQTT discovery messages for battery mode sensors."""
         assert self.mqtt_client is not None, "MQTT client must be initialized"
@@ -321,9 +342,16 @@ class WavesharePictureFrame:
             self.setup_display()
             self.setup_mqtt()
             self.setup_handlers()
-            self.connect_mqtt()
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
+
+            try:
+                self.connect_mqtt()
+            except Exception:
+                # Normal mode can't run without MQTT, but still show a local image first
+                self.mqtt_client.disconnect()  # Stop paho's background reconnect loop
+                self.show_mqtt_or_local_image(mqtt_connected=False)
+                raise
 
             # Publish Home Assistant MQTT discovery messages (if preview enabled)
             if self.config.preview.enabled:
@@ -348,6 +376,9 @@ class WavesharePictureFrame:
 
                 except Exception as e:
                     logger.warning(f"Failed to publish HA discovery message: {e}")
+
+            # Show a local image unless an MQTT image arrives within the timeout
+            self.show_mqtt_or_local_image(mqtt_connected=True)
 
             # Run MQTT client (blocking)
             self.mqtt_client.run_forever()
@@ -463,18 +494,9 @@ class WavesharePictureFrame:
                 except Exception as e:
                     logger.error(f"Failed to publish battery status: {e}")
 
-            # Check for messages (the broker queues them while the device is off)
-            if mqtt_connected:
-                timeout = self.config.pisugar.message_wait_timeout
-                try:
-                    messages_received = self.mqtt_client.wait_for_messages(timeout=timeout)
-                    logger.info(f"Battery mode: received {messages_received} message(s)")
-                except Exception as e:
-                    logger.error(f"Error processing messages: {e}")
-
-            # No image from MQTT (none sent, or it failed): show one from the local folder
-            if not self.app_state.image_displayed:
-                self.show_local_image()
+            # Check for messages (the broker queues them while the device is off), falling
+            # back to a local image
+            self.show_mqtt_or_local_image(mqtt_connected)
 
             if self.app_state.image_failed:
                 status = "image_fetch_failed"

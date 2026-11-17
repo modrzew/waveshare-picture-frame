@@ -76,13 +76,14 @@ def fit_aspect(box: Box, image_size: tuple[int, int], aspect: float) -> tuple[Bo
     return (round(left), round(top), round(w), round(h)), cut
 
 
-def output_path(source: Path, destination: Path) -> Path:
-    """Resolve the output file: a directory gets <source stem>.png inside it."""
-    if destination.is_dir() or str(destination).endswith(("/", "\\")):
-        return destination / f"{source.stem}.png"
-    if destination.suffix.lower() != ".png":
+def output_path(source: Path, destination: str) -> Path:
+    """Resolve the output file: a directory (existing, or ending in /) gets <stem>.png."""
+    path = Path(destination)  # Path() drops a trailing slash, so check the raw string
+    if path.is_dir() or destination.endswith(("/", "\\")):
+        return path / f"{source.stem}.png"
+    if path.suffix.lower() != ".png":
         raise ValueError(f"Output must be a .png file (lossless), got {destination}")
-    return destination
+    return path
 
 
 def main() -> int:
@@ -96,7 +97,7 @@ def main() -> int:
     )
     parser.add_argument("source", type=Path, help="Source image")
     parser.add_argument(
-        "destination", type=Path, help="Output .png file, or a directory for <source stem>.png"
+        "destination", help="Output .png file, or a directory for <source stem>.png"
     )
     parser.add_argument(
         "--crop",

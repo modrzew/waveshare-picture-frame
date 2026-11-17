@@ -10,7 +10,7 @@ A Python application that displays images on Waveshare e-ink displays via MQTT m
 - Runs as a systemd service on Raspberry Pi
 - Includes dry-run mode for development without hardware
 - Publishes preview thumbnails to Home Assistant via MQTT
-- Standalone battery mode: shows a random image from a local folder when no MQTT image arrives
+- Standalone: shows a random image from a local folder when no MQTT image arrives
 - Desktop CLI (`prepare_image.py`) to crop and colour-convert images so the Pi shows them as-is
 
 ## Installation
@@ -73,12 +73,14 @@ Send JSON messages to the configured topic:
 }
 ```
 
-## Local Image Folder (Battery Mode)
+## Local Image Folder
 
-On each wake-up the frame waits `pisugar.message_wait_timeout` seconds (default 5) for an
-MQTT message. If no image arrives (or fetching it fails), it shows a random image from
-`local_images.path`, searched recursively. Hidden files and folders are skipped. If MQTT is
-unreachable, the frame still shows a local image, sets the RTC alarm and shuts down.
+On startup (every mode; in battery mode that is every wake-up) the frame waits
+`pisugar.message_wait_timeout` seconds (default 5) for an MQTT message. If no image arrives
+(or fetching it fails), it shows a random image from `local_images.path`, searched
+recursively. Hidden files and folders are skipped. If MQTT is unreachable, the frame still
+shows a local image; battery mode then sets the RTC alarm and shuts down, normal mode exits.
+In normal mode, MQTT images keep replacing it as they arrive.
 
 ```toml
 [local_images]
