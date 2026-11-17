@@ -59,3 +59,6 @@ quality = 80                        # JPEG quality (1-100, higher = better quali
 #     "clear_first": true
 #   }
 # }
+#
+# Show a random image from [local_images].path instead of a URL:
+# {"action": "display_image", "data": {"random": true}}

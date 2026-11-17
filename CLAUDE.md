@@ -76,7 +76,7 @@ uv run python prepare_image.py SRC DST --crop X,Y,W,H --preview P.png  # Desktop
 - **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.
 - See `waveshare-frame.service` for deployment instructions
 
-**Local image fallback (all modes)**: `show_mqtt_or_local_image()` in `main.py` waits `pisugar.message_wait_timeout` seconds for MQTT messages, then shows a random image from `local_images.path` if none displayed an image. Normal mode does this once at startup (also when the broker is unreachable, before exiting) and then waits for MQTT forever; battery mode does it on every wake-up.
+**Local image fallback (all modes)**: `show_mqtt_or_local_image()` in `main.py` waits `pisugar.message_wait_timeout` seconds for MQTT messages, then shows a random image from `local_images.path` if none displayed an image (via `ImageHandler.show_random_image()`, which also serves `display_image` with `random: true`). Normal mode does this once at startup (also when the broker is unreachable, before exiting) and then waits for MQTT forever; battery mode does it on every wake-up.
 
 **Signal handling:**
 - First Ctrl+C: Graceful shutdown (disconnects MQTT, clears display, sleeps hardware)
@@ -134,10 +134,10 @@ journalctl -u waveshare-frame -f
 - **src/config.py**: TOML parsing and configuration dataclasses; includes MQTTConfig, DisplayConfig, LoggingConfig, PisugarConfig, PreviewConfig, LocalImagesConfig
 - **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports always-on (`run_forever()`) and battery (`wait_for_messages()`, connection stays open) modes; publishes JSON and binary payloads
 - **src/handlers/base.py**: Abstract handler interface (can_handle, handle, supported_actions)
-- **src/handlers/image_handler.py**: Fetches images from URLs (custom User-Agent) and hands them to the renderer
+- **src/handlers/image_handler.py**: `display_image` - fetches images from URLs (custom User-Agent) or picks a random local image (`random: true`, also the startup fallback) and hands them to the renderer
 - **src/handlers/system_handler.py**: System control commands (mode switching, runtime control)
 - **src/state.py**: Shared application state (continuous mode, whether an image was displayed/failed this run)
-- **src/local_images.py**: Recursive random image picker for the local folder
+- **src/local_images.py**: Recursive image listing/shuffling for the local folder
 - **src/display/renderer.py**: `ImageRenderer` - panel-ready fast path vs barebones conversion, display lock, HA preview publishing
 - **src/display/palette.py**: Driver palettes per model, panel-ready check, code mapping and 4-bit packing
 - **src/display/color.py**: Desktop-quality colour conversion engine used by `prepare_image.py`
@@ -165,7 +165,7 @@ The MQTT client calls `handler.can_handle(action)` for each registered handler u
 
 **Supported Actions:**
 
-1. **display_image** - Display an image from URL
+1. **display_image** - Display an image from a URL, or a random image from `local_images.path`
    ```json
    {
      "action": "display_image",
@@ -176,6 +176,13 @@ The MQTT client calls `handler.can_handle(action)` for each registered handler u
      }
    }
    ```
+   ```json
+   {
+     "action": "display_image",
+     "data": {"random": true}
+   }
+   ```
+   Exactly one of `url` or `random: true` is required. `random` uses the same code path as the startup fallback (`ImageHandler.show_random_image()`), so it can be used to test local images in normal/continuous mode without restarting. During the battery-mode wait it counts as an MQTT image, so no extra fallback image is shown.
 
 2. **enter_continuous_mode** - Switch from battery mode to continuous mode
    ```json

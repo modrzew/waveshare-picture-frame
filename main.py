@@ -14,18 +14,13 @@ from src.display.renderer import ImageRenderer
 from src.display.waveshare import WaveshareDisplay
 from src.handlers.image_handler import ImageHandler
 from src.handlers.system_handler import SystemHandler
-from src.local_images import LocalImageFolder
 from src.logging.json_lines import JsonLinesHandler
 from src.mqtt.client import MQTTClient
 from src.pisugar.client import PisugarClient
 from src.state import AppState
-from src.utils.image_processing import open_image
 from src.utils.time_sync import sync_system_time
 
 logger = logging.getLogger(__name__)
-
-# How many local images to try before giving up (skips unreadable files)
-MAX_LOCAL_IMAGE_ATTEMPTS = 5
 
 
 class WavesharePictureFrame:
@@ -45,6 +40,7 @@ class WavesharePictureFrame:
         self.display = None
         self.mqtt_client = None
         self.renderer: ImageRenderer | None = None
+        self.image_handler: ImageHandler | None = None
         self.handlers = []
         self._json_lines_handler: JsonLinesHandler | None = None
         self._shutting_down = False
@@ -151,9 +147,13 @@ class WavesharePictureFrame:
             image_processing_config=self.config.image_processing,
         )
 
-        # Add image handler
-        image_handler = ImageHandler(renderer=self.renderer, app_state=self.app_state)
-        self.handlers.append(image_handler)
+        # Add image handler (URL or random local image; also the startup fallback)
+        self.image_handler = ImageHandler(
+            renderer=self.renderer,
+            app_state=self.app_state,
+            local_folder=self.config.local_images.path,
+        )
+        self.handlers.append(self.image_handler)
 
         # Register handlers with MQTT client
         for handler in self.handlers:
@@ -184,46 +184,6 @@ class WavesharePictureFrame:
         }
         return device_name, device_id, device_info
 
-    def show_local_image(self):
-        """Show a random image from the local image folder, if one is configured."""
-        folder_path = self.config.local_images.path
-        if not folder_path:
-            logger.info("No local image folder configured - keeping the current image")
-            return
-
-        assert self.display is not None and self.renderer is not None
-
-        try:
-            candidates = LocalImageFolder(folder_path).random_images()
-        except OSError as e:
-            logger.error(f"Cannot read local image folder: {e}")
-            self.app_state.mark_image_failed()
-            return
-
-        if not candidates:
-            logger.error(f"No images found in local image folder {folder_path}")
-            self.app_state.mark_image_failed()
-            return
-
-        for path in candidates[:MAX_LOCAL_IMAGE_ATTEMPTS]:
-            try:
-                image = open_image(str(path), (self.display.width, self.display.height))
-            except Exception as e:
-                logger.warning(f"Skipping unreadable image {path}: {e}")
-                continue
-
-            logger.info(f"Showing local image: {path}")
-            try:
-                self.renderer.render(image)
-                self.app_state.mark_image_displayed()
-            except Exception as e:
-                logger.error(f"Failed to display local image {path}: {e}")
-                self.app_state.mark_image_failed()
-            return
-
-        logger.error(f"Could not load any of {MAX_LOCAL_IMAGE_ATTEMPTS} local images")
-        self.app_state.mark_image_failed()
-
     def show_mqtt_or_local_image(self, mqtt_connected: bool):
         """Wait for MQTT messages; if none of them displayed an image, show a local one.
 
@@ -243,7 +203,8 @@ class WavesharePictureFrame:
 
         # No image from MQTT (none sent, or it failed): show one from the local folder
         if not self.app_state.image_displayed:
-            self.show_local_image()
+            assert self.image_handler is not None, "Handlers must be initialized"
+            self.image_handler.show_random_image()
 
     def _publish_battery_discovery(self):
         """Publish Home Assistant MQTT discovery messages for battery mode sensors."""

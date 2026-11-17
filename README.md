@@ -73,6 +73,13 @@ Send JSON messages to the configured topic:
 }
 ```
 
+Use `"random": true` instead of `url` to show a random image from the local image folder
+(same as the startup fallback, handy for testing without restarting):
+
+```json
+{"action": "display_image", "data": {"random": true}}
+```
+
 ## Local Image Folder
 
 On startup (every mode; in battery mode that is every wake-up) the frame waits
