@@ -86,6 +86,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/74/5e/a40eaa9f4f79182b1e3a97059fbaeab4ee567639188fc00d352f3a129751/jetson_gpio-2.1.12.tar.gz", hash = "sha256:43110ba2e3bbf747bfe65ef2cc442cee91bdea8924e946bc64ec55b67f9eb948", size = 37412, upload-time = "2025-09-30T16:02:50.571Z" }
 
 [[package]]
+name = "lgpio"
+version = "0.2.2.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "platform_machine != 'armv6l' and platform_machine != 'armv7l'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/56/33/26ec2e8049eaa2f077bf23a12dc61ca559fbfa7bea0516bf263d657ae275/lgpio-0.2.2.0.tar.gz", hash = "sha256:11372e653b200f76a0b3ef8a23a0735c85ec678a9f8550b9893151ed0f863fff", size = 90087, upload-time = "2024-03-29T21:59:55.901Z" }
+
+[[package]]
+name = "lgpio"
+version = "0.2.2.0"
+source = { registry = "https://www.piwheels.org/simple" }
+resolution-markers = [
+    "platform_machine == 'armv6l' or platform_machine == 'armv7l'",
+]
+wheels = [
+    { url = "https://www.piwheels.org/simple/lgpio/lgpio-0.2.2.0-cp313-cp313-linux_armv6l.whl", hash = "sha256:88c48db5e18271ef6b1435c5ee5c7712d9a2c16bfd4119cd8d4222c1a0c761bd" },
+    { url = "https://www.piwheels.org/simple/lgpio/lgpio-0.2.2.0-cp313-cp313-linux_armv7l.whl", hash = "sha256:88c48db5e18271ef6b1435c5ee5c7712d9a2c16bfd4119cd8d4222c1a0c761bd" },
+]
+
+[[package]]
 name = "nodeenv"
 version = "1.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -359,6 +380,8 @@ jetson = [
 ]
 rpi = [
     { name = "gpiozero" },
+    { name = "lgpio", version = "0.2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'" },
+    { name = "lgpio", version = "0.2.2.0", source = { registry = "https://www.piwheels.org/simple" }, marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'" },
     { name = "rpi-gpio" },
     { name = "spidev" },
 ]
@@ -373,6 +396,8 @@ dev = [
 requires-dist = [
     { name = "gpiozero", marker = "extra == 'rpi'" },
     { name = "jetson-gpio", marker = "extra == 'jetson'" },
+    { name = "lgpio", marker = "(platform_machine == 'armv6l' and extra == 'rpi') or (platform_machine == 'armv7l' and extra == 'rpi')", index = "https://www.piwheels.org/simple" },
+    { name = "lgpio", marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l' and extra == 'rpi'" },
     { name = "numpy", marker = "platform_machine != 'armv6l' and platform_machine != 'armv7l'", specifier = ">=1.26.0" },
     { name = "numpy", marker = "platform_machine == 'armv6l' or platform_machine == 'armv7l'", specifier = ">=1.26.0", index = "https://www.piwheels.org/simple" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },

@@ -17,7 +17,8 @@ uv sync               # Install dependencies (paho-mqtt, pillow, requests)
 
 **Raspberry Pi installation:**
 ```bash
-uv sync --extra rpi     # Installs RPi.GPIO, spidev and gpiozero
+sudo apt-get install -y liblgpio1   # C library needed by the lgpio wheel
+uv sync --extra rpi     # Installs RPi.GPIO, spidev, gpiozero and lgpio
 ```
 
 **Jetson Nano installation:**
@@ -36,7 +37,7 @@ pip install Hobot.GPIO spidev  # Install from Horizon's repository
 If you need to use system-installed Pillow/numpy on Pi Zero W:
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3-pil python3-numpy python3-rpi.gpio python3-spidev python3-gpiozero
+sudo apt-get install -y python3-pil python3-numpy python3-rpi.gpio python3-spidev python3-gpiozero python3-lgpio
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 uv pip install paho-mqtt requests
@@ -292,6 +293,6 @@ class MyHandler(HandlerBase):
 - **paho-mqtt v2.x API**: Uses `CallbackAPIVersion.VERSION2` with different callback signatures than v1.x (callbacks receive `reason_code` and `properties` parameters)
 - **Python 3.13 required**: Uses modern type hints (`dict`, `list`, `X | None` instead of `Dict`, `List`, `Optional[X]`)
 - **waveshare-epd vendored**: The waveshare_epd drivers are vendored in `src/vendor/waveshare_epd/` to avoid cloning the massive GitHub repo. Imports use `from src.vendor.waveshare_epd import ...`
-- **Platform-specific GPIO**: Use optional dependencies via `--extra rpi` or `--extra jetson` to install platform-specific GPIO libraries (RPi.GPIO + gpiozero + spidev, Jetson.GPIO). Hobot.GPIO must be installed manually.
+- **Platform-specific GPIO**: Use optional dependencies via `--extra rpi` or `--extra jetson` to install platform-specific GPIO libraries (RPi.GPIO + gpiozero + lgpio + spidev, Jetson.GPIO). Hobot.GPIO must be installed manually. gpiozero must use the lgpio pin factory: its RPi.GPIO fallback fails with "Failed to add edge detection" on current Pi OS kernels (sysfs GPIO is gone).
 - **MQTT authentication**: Supports username-only or username+password (password is optional)
 - **Ruff configuration**: Line length 100, targets Python 3.13, uses pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, and pyupgrade rules

@@ -10,3 +10,6 @@ wheels/
 .venv
 
 config.toml
+
+# lgpio notification pipes (created in the working directory)
+.lgd-nfy*
