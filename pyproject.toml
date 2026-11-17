@@ -10,8 +10,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "paho-mqtt>=2.1.0",
-    "pillow>=10.4.0",
-    "requests>=2.32.3",
+    "pillow>=13.0.0",
+    "requests>=2.33.0",
     "numpy>=1.26.0",
 ]
 
