@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-rpi = ["RPi.GPIO", "spidev"]
+rpi = ["RPi.GPIO", "spidev", "gpiozero"]
 jetson = ["Jetson.GPIO"]
 
 [dependency-groups]
