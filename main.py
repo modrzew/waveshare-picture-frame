@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.config import Config
+from src.display.renderer import ImageRenderer
 from src.display.waveshare import WaveshareDisplay
 from src.handlers.image_handler import ImageHandler
 from src.handlers.system_handler import SystemHandler
@@ -38,6 +39,8 @@ class WavesharePictureFrame:
         self.battery_mode = battery_mode
         self.display = None
         self.mqtt_client = None
+        self.renderer: ImageRenderer | None = None
+        self.image_handler: ImageHandler | None = None
         self.handlers = []
         self._json_lines_handler: JsonLinesHandler | None = None
         self._shutting_down = False
@@ -136,14 +139,21 @@ class WavesharePictureFrame:
         system_handler = SystemHandler(self.app_state)
         self.handlers.append(system_handler)
 
-        # Add image handler with preview support
-        image_handler = ImageHandler(
+        # Shared by MQTT images and local fallback images (publishes previews)
+        self.renderer = ImageRenderer(
             display=self.display,
             mqtt_client=self.mqtt_client,
             preview_config=self.config.preview,
             image_processing_config=self.config.image_processing,
         )
-        self.handlers.append(image_handler)
+
+        # Add image handler (URL or random local image; also the startup fallback)
+        self.image_handler = ImageHandler(
+            renderer=self.renderer,
+            app_state=self.app_state,
+            local_folder=self.config.local_images.path,
+        )
+        self.handlers.append(self.image_handler)
 
         # Register handlers with MQTT client
         for handler in self.handlers:
@@ -174,6 +184,109 @@ class WavesharePictureFrame:
         }
         return device_name, device_id, device_info
 
+    def show_mqtt_or_local_image(self, mqtt_connected: bool):
+        """Wait for MQTT messages; if none of them displayed an image, show a local one.
+
+        Used by every mode, so the frame always gets an image even without MQTT.
+
+        Args:
+            mqtt_connected: Whether the MQTT client is connected (skip the wait if not)
+        """
+        if mqtt_connected:
+            assert self.mqtt_client is not None, "MQTT client must be initialized"
+            timeout = self.config.pisugar.message_wait_timeout
+            try:
+                messages_received = self.mqtt_client.wait_for_messages(timeout=timeout)
+                logger.info(f"Received {messages_received} message(s) within {timeout}s")
+            except Exception as e:
+                logger.error(f"Error processing messages: {e}")
+
+        # No image from MQTT (none sent, or it failed): show one from the local folder
+        if not self.app_state.image_displayed:
+            assert self.image_handler is not None, "Handlers must be initialized"
+            self.image_handler.show_random_image()
+
+    def _publish_battery_discovery(self):
+        """Publish Home Assistant MQTT discovery messages for battery mode sensors."""
+        assert self.mqtt_client is not None, "MQTT client must be initialized"
+        try:
+            device_name, device_id, device_info = self._get_device_info()
+
+            # Battery sensor discovery
+            battery_discovery = {
+                "name": f"{device_name} Battery",
+                "state_topic": self.config.pisugar.battery_topic,
+                "value_template": "{{ value_json.battery_level }}",
+                "unit_of_measurement": "%",
+                "device_class": "battery",
+                "state_class": "measurement",
+                "unique_id": f"{device_id}_battery",
+                "device": device_info,
+            }
+            self.mqtt_client.publish(
+                topic=f"homeassistant/sensor/{device_id}_battery/config",
+                payload=battery_discovery,
+                qos=1,
+                retain=True,
+            )
+            logger.debug("Published battery discovery message")
+
+            # Preview image discovery (if enabled)
+            if self.config.preview.enabled:
+                preview_discovery = {
+                    "name": f"{device_name} Preview",
+                    "image_topic": self.config.preview.topic,
+                    "image_encoding": "b64",
+                    "content_type": "image/jpeg",
+                    "unique_id": f"{device_id}_preview",
+                    "device": device_info,
+                }
+                self.mqtt_client.publish(
+                    topic=f"homeassistant/image/{device_id}_preview/config",
+                    payload=preview_discovery,
+                    qos=1,
+                    retain=True,
+                )
+                logger.debug("Published preview image discovery message")
+
+            # Status sensor discovery
+            status_discovery = {
+                "name": f"{device_name} Status",
+                "state_topic": self.config.pisugar.status_topic,
+                "value_template": "{{ value_json.status }}",
+                "device_class": "enum",
+                "options": ["ok", "rtc_failure", "image_fetch_failed"],
+                "unique_id": f"{device_id}_status",
+                "device": device_info,
+            }
+            self.mqtt_client.publish(
+                topic=f"homeassistant/sensor/{device_id}_status/config",
+                payload=status_discovery,
+                qos=1,
+                retain=True,
+            )
+            logger.debug("Published status sensor discovery message")
+
+            # Last Updated timestamp sensor discovery (for detecting time drift)
+            last_updated_discovery = {
+                "name": f"{device_name} Last Updated",
+                "state_topic": self.config.pisugar.battery_topic,
+                "value_template": "{{ value_json.timestamp }}",
+                "device_class": "timestamp",
+                "unique_id": f"{device_id}_last_updated",
+                "device": device_info,
+            }
+            self.mqtt_client.publish(
+                topic=f"homeassistant/sensor/{device_id}_last_updated/config",
+                payload=last_updated_discovery,
+                qos=1,
+                retain=True,
+            )
+            logger.debug("Published last updated sensor discovery message")
+
+        except Exception as e:
+            logger.warning(f"Failed to publish HA discovery messages: {e}")
+
     def run(self):
         """Run the application."""
         if self.battery_mode or self.config.pisugar.enabled:
@@ -190,9 +303,16 @@ class WavesharePictureFrame:
             self.setup_display()
             self.setup_mqtt()
             self.setup_handlers()
-            self.connect_mqtt()
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
+
+            try:
+                self.connect_mqtt()
+            except Exception:
+                # Normal mode can't run without MQTT, but still show a local image first
+                self.mqtt_client.disconnect()  # Stop paho's background reconnect loop
+                self.show_mqtt_or_local_image(mqtt_connected=False)
+                raise
 
             # Publish Home Assistant MQTT discovery messages (if preview enabled)
             if self.config.preview.enabled:
@@ -217,6 +337,9 @@ class WavesharePictureFrame:
 
                 except Exception as e:
                     logger.warning(f"Failed to publish HA discovery message: {e}")
+
+            # Show a local image unless an MQTT image arrives within the timeout
+            self.show_mqtt_or_local_image(mqtt_connected=True)
 
             # Run MQTT client (blocking)
             self.mqtt_client.run_forever()
@@ -271,88 +394,21 @@ class WavesharePictureFrame:
             self.setup_display()
             self.setup_mqtt()
             self.setup_handlers()
-            self.connect_mqtt()
 
             assert self.mqtt_client is not None, "MQTT client must be initialized"
 
-            # Publish Home Assistant MQTT discovery messages
+            # MQTT is optional here: without it, still show a local image, set the RTC
+            # alarm and shut down, rather than staying on and draining the battery
             try:
-                device_name, device_id, device_info = self._get_device_info()
-
-                # Battery sensor discovery
-                battery_discovery = {
-                    "name": f"{device_name} Battery",
-                    "state_topic": self.config.pisugar.battery_topic,
-                    "value_template": "{{ value_json.battery_level }}",
-                    "unit_of_measurement": "%",
-                    "device_class": "battery",
-                    "state_class": "measurement",
-                    "unique_id": f"{device_id}_battery",
-                    "device": device_info,
-                }
-                self.mqtt_client.publish(
-                    topic=f"homeassistant/sensor/{device_id}_battery/config",
-                    payload=battery_discovery,
-                    qos=1,
-                    retain=True,
-                )
-                logger.debug("Published battery discovery message")
-
-                # Preview image discovery (if enabled)
-                if self.config.preview.enabled:
-                    preview_discovery = {
-                        "name": f"{device_name} Preview",
-                        "image_topic": self.config.preview.topic,
-                        "image_encoding": "b64",
-                        "content_type": "image/jpeg",
-                        "unique_id": f"{device_id}_preview",
-                        "device": device_info,
-                    }
-                    self.mqtt_client.publish(
-                        topic=f"homeassistant/image/{device_id}_preview/config",
-                        payload=preview_discovery,
-                        qos=1,
-                        retain=True,
-                    )
-                    logger.debug("Published preview image discovery message")
-
-                # Status sensor discovery
-                status_discovery = {
-                    "name": f"{device_name} Status",
-                    "state_topic": self.config.pisugar.status_topic,
-                    "value_template": "{{ value_json.status }}",
-                    "device_class": "enum",
-                    "options": ["ok", "rtc_failure", "image_fetch_failed"],
-                    "unique_id": f"{device_id}_status",
-                    "device": device_info,
-                }
-                self.mqtt_client.publish(
-                    topic=f"homeassistant/sensor/{device_id}_status/config",
-                    payload=status_discovery,
-                    qos=1,
-                    retain=True,
-                )
-                logger.debug("Published status sensor discovery message")
-
-                # Last Updated timestamp sensor discovery (for detecting time drift)
-                last_updated_discovery = {
-                    "name": f"{device_name} Last Updated",
-                    "state_topic": self.config.pisugar.battery_topic,
-                    "value_template": "{{ value_json.timestamp }}",
-                    "device_class": "timestamp",
-                    "unique_id": f"{device_id}_last_updated",
-                    "device": device_info,
-                }
-                self.mqtt_client.publish(
-                    topic=f"homeassistant/sensor/{device_id}_last_updated/config",
-                    payload=last_updated_discovery,
-                    qos=1,
-                    retain=True,
-                )
-                logger.debug("Published last updated sensor discovery message")
-
+                self.connect_mqtt()
+                mqtt_connected = True
             except Exception as e:
-                logger.warning(f"Failed to publish HA discovery messages: {e}")
+                logger.error(f"MQTT unavailable, continuing without it: {e}")
+                self.mqtt_client.disconnect()  # Stop paho's background reconnect loop
+                mqtt_connected = False
+
+            if mqtt_connected:
+                self._publish_battery_discovery()
 
             # Clear RTC alarm flag from previous wake-up (critical for subsequent alarms to work)
             try:
@@ -370,43 +426,40 @@ class WavesharePictureFrame:
                 logger.warning(f"Failed to clear RTC alarm flag: {e}")
 
             # Publish battery status to MQTT
-            try:
-                # Create Pisugar client to read battery level
-                if self.config.pisugar.use_tcp:
-                    pisugar = PisugarClient(
-                        host=self.config.pisugar.tcp_host,
-                        port=self.config.pisugar.tcp_port,
-                    )
-                else:
-                    pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
+            if mqtt_connected:
+                try:
+                    # Create Pisugar client to read battery level
+                    if self.config.pisugar.use_tcp:
+                        pisugar = PisugarClient(
+                            host=self.config.pisugar.tcp_host,
+                            port=self.config.pisugar.tcp_port,
+                        )
+                    else:
+                        pisugar = PisugarClient(socket_path=self.config.pisugar.socket_path)
 
-                battery_level = pisugar.get_battery_level()
-                if battery_level is not None:
-                    # Publish battery status
-                    battery_payload = {
-                        "battery_level": battery_level,
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                    self.mqtt_client.publish(
-                        topic=self.config.pisugar.battery_topic,
-                        payload=battery_payload,
-                        qos=1,
-                    )
-                    logger.info(f"Published battery level: {battery_level:.1f}%")
-                else:
-                    logger.warning("Could not read battery level from Pisugar")
-            except Exception as e:
-                logger.error(f"Failed to publish battery status: {e}")
+                    battery_level = pisugar.get_battery_level()
+                    if battery_level is not None:
+                        # Publish battery status
+                        battery_payload = {
+                            "battery_level": battery_level,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                        self.mqtt_client.publish(
+                            topic=self.config.pisugar.battery_topic,
+                            payload=battery_payload,
+                            qos=1,
+                        )
+                        logger.info(f"Published battery level: {battery_level:.1f}%")
+                    else:
+                        logger.warning("Could not read battery level from Pisugar")
+                except Exception as e:
+                    logger.error(f"Failed to publish battery status: {e}")
 
-            # Check for messages with timeout
-            timeout = self.config.pisugar.message_wait_timeout
-            try:
-                messages_processed = self.mqtt_client.run_once(timeout=timeout)
-                logger.info(f"Battery mode: processed {messages_processed} message(s)")
-            except Exception as e:
-                # Image fetch or other handler failures are logged but don't prevent shutdown
-                # as long as RTC alarm can be set
-                logger.error(f"Error processing messages: {e}")
+            # Check for messages (the broker queues them while the device is off), falling
+            # back to a local image
+            self.show_mqtt_or_local_image(mqtt_connected)
+
+            if self.app_state.image_failed:
                 status = "image_fetch_failed"
 
             # Check if continuous mode was enabled via MQTT command
@@ -415,8 +468,7 @@ class WavesharePictureFrame:
                     "Continuous mode enabled - switching to always-on mode. "
                     "Device will not shutdown automatically."
                 )
-                # Reconnect MQTT and run forever
-                self.mqtt_client.connect()
+                # Still connected: keep processing messages until stopped
                 self.mqtt_client.run_forever()
                 return  # Skip RTC alarm and shutdown
 
@@ -462,23 +514,23 @@ class WavesharePictureFrame:
                     logger.error(f"Failed to set RTC alarm: {e}", exc_info=True)
                     status = "rtc_failure"
 
-                # Publish status to Home Assistant (reconnect first since run_once disconnected)
-                try:
-                    self.mqtt_client.connect()
-                    status_payload = {
-                        "status": status,
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                    self.mqtt_client.publish(
-                        topic=self.config.pisugar.status_topic,
-                        payload=status_payload,
-                        qos=1,
-                        retain=True,
-                    )
-                    logger.info(f"Published system status: {status}")
+                # Publish status to Home Assistant, then disconnect before shutting down
+                if mqtt_connected:
+                    try:
+                        status_payload = {
+                            "status": status,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                        self.mqtt_client.publish(
+                            topic=self.config.pisugar.status_topic,
+                            payload=status_payload,
+                            qos=1,
+                            retain=True,
+                        )
+                        logger.info(f"Published system status: {status}")
+                    except Exception as e:
+                        logger.error(f"Failed to publish status: {e}")
                     self.mqtt_client.disconnect()
-                except Exception as e:
-                    logger.error(f"Failed to publish status: {e}")
 
                 # Only shutdown if RTC alarm was successfully verified
                 if rtc_alarm_verified:

@@ -1,15 +1,42 @@
 """Image processing utilities for border detection and cropping."""
 
 import logging
+from typing import IO
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
 # Border detection constants
 UNIFORMITY_THRESHOLD = 25.0  # Max std deviation for uniform borders (higher = more permissive)
 MIN_BORDER_SIZE = 5  # Minimum border size in pixels to warrant cropping
+
+
+def open_image(fp: str | IO[bytes], min_size: tuple[int, int]) -> Image.Image:
+    """Open and decode an image as cheaply as possible.
+
+    JPEGs are decoded at 1/2, 1/4 or 1/8 scale when that still leaves both sides at least
+    as long as the longer side of ``min_size`` (so it holds after an EXIF rotation too),
+    which saves a lot of time and memory on a Pi Zero. EXIF orientation is applied so
+    phone photos come out upright.
+
+    Args:
+        fp: File path or binary file object
+        min_size: Smallest (width, height) the decoded image must cover
+
+    Returns:
+        Loaded PIL Image
+    """
+    image = Image.open(fp)
+    original_size = image.size
+    side = max(min_size)
+    image.draft("RGB", (side, side))
+    image = ImageOps.exif_transpose(image)
+    image.load()
+    if image.size != original_size:
+        logger.debug(f"Decoded image at reduced size: {original_size} -> {image.size}")
+    return image
 
 
 def auto_crop_borders(image: Image.Image) -> Image.Image:

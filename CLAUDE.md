@@ -49,6 +49,7 @@ python main.py -c custom.toml      # Run with custom config file
 python main.py --test-display      # Test display with sample image and exit
 python main.py --dry-run           # Run with mock display (for testing MQTT without hardware)
 python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
+uv run python prepare_image.py SRC DST --crop X,Y,W,H --preview P.png  # Desktop: make a panel-ready PNG
 ```
 
 **Dry-run mode** (`--dry-run`):
@@ -60,12 +61,12 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 **Battery mode** (`--battery-mode` or `pisugar.enabled = true` in config):
 - Designed for Pisugar 3 battery-powered operation on Raspberry Pi Zero W
 - Wake-check-display-sleep cycle:
-  1. Connects to MQTT with QoS 2 + clean_session=false (queues messages while offline)
+  1. Connects to MQTT with QoS 2 + clean_session=false (queues messages while offline). If the broker is unreachable, MQTT steps are skipped and the cycle continues offline
   2. Publishes battery status to configured MQTT topic (JSON: `{"battery_level": 98.37, "timestamp": "2025-10-06T10:38:00"}`)
-  3. Waits for messages (configurable timeout, default 30s)
-  4. Processes any queued/new messages
+  3. Waits for messages (`message_wait_timeout`, default 5s, +5s after each message) and processes any queued/new messages
+  4. If no image was displayed (no message, or the fetch failed), shows a random image from `local_images.path` (recursive, hidden files skipped)
   5. Sets Pisugar RTC alarm for next wake-up (configurable interval, default 15 mins)
-  6. Shuts down the system
+  6. Publishes status on the same connection, disconnects and shuts down the system
 - Pisugar communication: Uses TCP (127.0.0.1:8423) by default to avoid Unix socket permission issues. Can use Unix socket by setting `use_tcp = false` in config.
 - Pisugar RTC alarm: Only stores time-of-day (HH:MM:SS), not full date. Alarm triggers at the specified time according to the repeat pattern (default: 127 = all days). Timezone must match RTC timezone (auto-detected from `get rtc_time`).
 - Battery status publishing: Publishes to `battery_topic` (default: `home/displays/waveshare/battery`) on each wake-up for monitoring
@@ -74,6 +75,8 @@ python main.py --battery-mode      # Run in battery-powered mode (Pisugar RTC)
 - Battery life: weeks/months instead of hours with always-on mode
 - **Switching to continuous mode**: Send MQTT command `{"action": "enter_continuous_mode"}` to prevent shutdown and switch to always-on mode. Useful for SSH access and maintenance. Device stays connected to MQTT until manually rebooted.
 - See `waveshare-frame.service` for deployment instructions
+
+**Local image fallback (all modes)**: `show_mqtt_or_local_image()` in `main.py` waits `pisugar.message_wait_timeout` seconds for MQTT messages, then shows a random image from `local_images.path` if none displayed an image (via `ImageHandler.show_random_image()`, which also serves `display_image` with `random: true`). Normal mode does this once at startup (also when the broker is unreachable, before exiting) and then waits for MQTT forever; battery mode does it on every wake-up.
 
 **Signal handling:**
 - First Ctrl+C: Graceful shutdown (disconnects MQTT, clears display, sleeps hardware)
@@ -121,17 +124,24 @@ journalctl -u waveshare-frame -f
 - `MockDisplay` implements logging-only version for development/testing
 - All display operations (init, display_image, clear, sleep) are abstracted
 - Image resizing/fitting logic is shared in the base class
+- **Panel-ready images**: exactly the panel size and only the driver's pure palette colours (`src/display/palette.py`). `ImageRenderer` shows them as-is (no auto-crop/resize); other images get border auto-crop, centre cover-resize and Floyd-Steinberg dithering. For 7in3e, `WaveshareDisplay` builds the 4-bit buffer itself with numpy (byte-identical to the vendor `getbuffer()`, without its per-pixel Python loop)
+- **High-quality conversion runs on the desktop**: `prepare_image.py` uses `src/display/color.py` (measured Spectra 6 inks, OKLab gamut mapping, Burkes error diffusion in linear light) and writes panel-ready palette PNGs. The Pi only imports `color.py` for HA preview colours (no ImageCms needed)
 
 ### Key Files
 
-- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode
-- **src/config.py**: TOML parsing and configuration dataclasses; includes MQTTConfig, DisplayConfig, LoggingConfig, PisugarConfig, PreviewConfig
-- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports both always-on (`run_forever()`) and one-shot (`run_once()`) modes; publishes JSON and binary payloads
+- **main.py**: Application orchestrator - initializes config, display, handlers, MQTT client; handles signals; supports battery mode; local image fallback in all modes
+- **prepare_image.py**: Desktop CLI - crops (box grown to 5:3), resizes and colour-converts an image to a panel-ready PNG; prints a JSON summary
+- **src/config.py**: TOML parsing and configuration dataclasses; includes MQTTConfig, DisplayConfig, LoggingConfig, PisugarConfig, PreviewConfig, LocalImagesConfig
+- **src/mqtt/client.py**: MQTT v2 client with handler registry and message routing; supports always-on (`run_forever()`) and battery (`wait_for_messages()`, connection stays open) modes; publishes JSON and binary payloads
 - **src/handlers/base.py**: Abstract handler interface (can_handle, handle, supported_actions)
-- **src/handlers/image_handler.py**: Fetches images from URLs, displays them, and publishes preview thumbnails to Home Assistant via MQTT
+- **src/handlers/image_handler.py**: `display_image` - fetches images from URLs (custom User-Agent) or picks a random local image (`random: true`, also the startup fallback) and hands them to the renderer
 - **src/handlers/system_handler.py**: System control commands (mode switching, runtime control)
-- **src/state.py**: Shared application state for runtime mode switching
-- **src/display/base.py**: Abstract display interface with shared image resizing
+- **src/state.py**: Shared application state (continuous mode, whether an image was displayed/failed this run)
+- **src/local_images.py**: Recursive image listing/shuffling for the local folder
+- **src/display/renderer.py**: `ImageRenderer` - panel-ready fast path vs barebones conversion, display lock, HA preview publishing
+- **src/display/palette.py**: Driver palettes per model, panel-ready check, code mapping and 4-bit packing
+- **src/display/color.py**: Desktop-quality colour conversion engine used by `prepare_image.py`
+- **src/display/base.py**: Abstract display interface with shared image resizing and panel-ready check
 - **src/display/waveshare.py**: Real hardware implementation using waveshare-epd library
 - **src/display/mock.py**: Mock display for development without hardware
 - **src/pisugar/client.py**: Pisugar power manager client for RTC alarm and battery status
@@ -155,7 +165,7 @@ The MQTT client calls `handler.can_handle(action)` for each registered handler u
 
 **Supported Actions:**
 
-1. **display_image** - Display an image from URL
+1. **display_image** - Display an image from a URL, or a random image from `local_images.path`
    ```json
    {
      "action": "display_image",
@@ -166,6 +176,13 @@ The MQTT client calls `handler.can_handle(action)` for each registered handler u
      }
    }
    ```
+   ```json
+   {
+     "action": "display_image",
+     "data": {"random": true}
+   }
+   ```
+   Exactly one of `url` or `random: true` is required. `random` uses the same code path as the startup fallback (`ImageHandler.show_random_image()`), so it can be used to test local images in normal/continuous mode without restarting. During the battery-mode wait it counts as an MQTT image, so no extra fallback image is shown.
 
 2. **enter_continuous_mode** - Switch from battery mode to continuous mode
    ```json
@@ -202,9 +219,12 @@ use_tcp = true                      # Use TCP instead of Unix socket (avoids per
 tcp_host = "127.0.0.1"              # Pisugar TCP host
 tcp_port = 8423                     # Pisugar TCP port
 socket_path = "/tmp/pisugar-server.sock"  # Unix socket (only if use_tcp = false)
-message_wait_timeout = 30           # Seconds to wait for MQTT messages
+message_wait_timeout = 5            # Seconds to wait for MQTT messages before the local image (all modes)
 shutdown_after_display = true       # Shutdown after processing
 battery_topic = "home/displays/waveshare/battery"  # MQTT topic for battery status
+
+[local_images]
+path = "/home/pi/frame-images"      # Random image shown at startup if no MQTT image arrives (all modes)
 
 [preview]
 enabled = true                      # Enable preview thumbnail publishing to Home Assistant
@@ -229,7 +249,7 @@ ntp_servers = ["pool.ntp.org", "time.google.com"]  # NTP servers to try
 
 **MQTT Discovery:**
 - Battery sensor: `homeassistant/sensor/{client_id}_battery/config` (battery mode only)
-- Status sensor: `homeassistant/sensor/{client_id}_status/config` (battery mode only, shows "ok", "rtc_failure", or "image_fetch_failed")
+- Status sensor: `homeassistant/sensor/{client_id}_status/config` (battery mode only, shows "ok", "rtc_failure", or "image_fetch_failed" - MQTT image or local folder image failed)
 - Last Updated sensor: `homeassistant/sensor/{client_id}_last_updated/config` (battery mode only, timestamp for detecting time drift)
 - Preview image: `homeassistant/image/{client_id}_preview/config` (both modes)
 - Device info is shared between entities for proper grouping
